@@ -344,10 +344,10 @@ INSPIRATIONS = [
     "Moonlit alpine lake perfectly reflecting a Milky Way arch, long-exposure photograph.",
 ]
 
-# Gemini 2.0 Flash Exp Image Generation — 免費配額可用
-GEMINI_IMG_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent"
-# Gemini 1.5 Flash — 用於 AI Enhance Prompt（免費配額較多）
-GEMINI_URL  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+# Gemini 3.1 Flash Image — 免費配額可用
+GEMINI_IMG_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent"
+# Gemini 3.5 Flash — 用於 AI Enhance Prompt
+GEMINI_URL  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -457,11 +457,22 @@ def call_imagen(prompt: str, api_key: str) -> str:
     return b64
 
 
-def call_gemini_image(prompt: str, api_key: str) -> str:
-    """Return base64-encoded PNG via Gemini 2.0 Flash image generation (free tier)."""
+def call_gemini_image(prompt: str, aspect: str, api_key: str) -> str:
+    """Return base64-encoded PNG via Gemini 3.1 Flash Image generation (free tier)."""
+    aspect_map = {
+        "1:1 Square": "1:1",
+        "16:9 Widescreen": "16:9",
+        "9:16 Portrait": "9:16"
+    }
+    api_aspect = aspect_map.get(aspect, "1:1")
     data = _post(f"{GEMINI_IMG_URL}?key={api_key}", {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
+        "generationConfig": {
+            "responseModalities": ["IMAGE", "TEXT"],
+            "imageConfig": {
+                "aspectRatio": api_aspect
+            }
+        },
     })
     # Find the inline image part
     parts = (
@@ -479,7 +490,7 @@ def call_gemini_image(prompt: str, api_key: str) -> str:
 
 
 def call_enhance(prompt: str, api_key: str) -> str:
-    """Expand / translate prompt with Gemini 1.5 Flash (higher free quota)."""
+    """Expand / translate prompt with Gemini 3.5 Flash."""
     system = (
         "You are an elite Prompt Engineer for state-of-the-art image generation models. "
         "Rewrite the user's idea (Chinese or English) into a rich, masterpiece-grade English "
@@ -533,7 +544,7 @@ st.markdown("""
     <div class="hero-title">Gemini Studio</div>
     <div class="hero-sub">TEXT · TO · IMAGE &nbsp;·&nbsp; POWERED BY GOOGLE AI</div>
   </div>
-  <div class="hero-badge">⚡ Gemini Flash Exp</div>
+  <div class="hero-badge">⚡ Gemini 3.1 & 3.5</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -713,7 +724,7 @@ if st.session_state.success_msg:
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="generate-cta">', unsafe_allow_html=True)
 gen_clicked = st.button(
-    "🚀  Generate with Gemini Flash (Free)",
+    "🚀  Generate with Gemini 3.1 Flash Image (Free)",
     key="btn_generate",
     use_container_width=True,
 )
@@ -735,12 +746,12 @@ if gen_clicked:
         spinner_ph = st.empty()
         prog_ph    = st.empty()
 
-        with st.spinner("🪐 Gemini Flash 正在生成圖像…"):
+        with st.spinner("🪐 Gemini 3.1 Flash Image 正在生成圖像…"):
             prog_ph.progress(0, text="Connecting to Google AI…")
             time.sleep(0.4)
             prog_ph.progress(25, text="Sending prompt…")
             try:
-                b64 = call_gemini_image(final_prompt, st.session_state.api_key)
+                b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
                 prog_ph.progress(85, text="Decoding image…")
                 time.sleep(0.2)
                 prog_ph.progress(100, text="Done!")
@@ -909,6 +920,6 @@ st.markdown("""
   The app will auto-load your key — no manual entry needed for visitors!
 </div>
 <div style="text-align:center;margin-top:14px;font-size:0.63rem;color:#1e293b;padding-bottom:20px;">
-  Gemini Studio · Built with Streamlit &amp; Gemini 2.0 Flash Exp Image Generation · 2025
+  Gemini Studio · Built with Streamlit &amp; Gemini 3.1 Flash Image · 2026
 </div>
 """, unsafe_allow_html=True)
