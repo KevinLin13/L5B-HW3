@@ -494,7 +494,7 @@ def call_gemini_image(prompt: str, aspect: str, api_key: str, model_name: str = 
 
 
 def call_enhance(prompt: str, api_key: str) -> str:
-    """Expand / translate prompt with Gemini 3.5 Flash."""
+    """Expand / translate prompt with Gemini text models (with auto-fallback to alternative versions)."""
     system = (
         "You are an elite Prompt Engineer for state-of-the-art image generation models. "
         "Rewrite the user's idea (Chinese or English) into a rich, masterpiece-grade English "
@@ -502,33 +502,47 @@ def call_enhance(prompt: str, api_key: str) -> str:
         "color palette, and mood. Be concise yet evocative (under 220 words). "
         "Output ONLY the final prompt — no introductions, markdown, or quotes."
     )
-    try:
-        data = _post(f"{GEMINI_URL}?key={api_key}", {
-            "contents": [{"parts": [{"text": f'Enhance this image prompt: "{prompt}"'}]}],
-            "systemInstruction": {"parts": [{"text": system}]},
-            "generationConfig": {"temperature": 0.85, "maxOutputTokens": 350},
-        })
-    except RuntimeError as e:
-        msg = str(e)
-        if "QUOTA_EXCEEDED" in msg:
-            raise RuntimeError(
-                "QUOTA_EXCEEDED: Gemini 免費配額已用盡。\n"
-                "請至 aistudio.google.com/apikey 建立新的 API Key，"
-                "或直接輸入英文 Prompt 後點擊生圖（跳過 AI Enhance）。"
+    
+    # Try models in order: gemini-3.5-flash -> gemini-2.5-flash -> gemini-1.5-flash -> gemini-2.0-flash
+    models = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"]
+    last_err_msg = ""
+    
+    for idx, model_name in enumerate(models):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        try:
+            data = _post(url, {
+                "contents": [{"parts": [{"text": f'Enhance this image prompt: "{prompt}"'}]}],
+                "systemInstruction": {"parts": [{"text": system}]},
+                "generationConfig": {"temperature": 0.85, "maxOutputTokens": 350},
+            })
+            text = (
+                data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [{}])[0]
+                    .get("text", "")
+                    .strip()
             )
-        if "AUTH_ERROR" in msg:
-            raise RuntimeError("AUTH_ERROR: API Key 無效或已失效，請重新確認並更新 Key。")
-        raise
-    text = (
-        data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "")
-            .strip()
-    )
-    if not text:
-        raise RuntimeError("Gemini returned an empty response. Try again.")
-    return text
+            if text:
+                return text
+        except RuntimeError as e:
+            msg = str(e)
+            last_err_msg = msg
+            # Authentication errors should halt immediately (no model fallback will fix invalid key)
+            if "AUTH_ERROR" in msg or "401" in msg or "403" in msg:
+                raise RuntimeError("AUTH_ERROR: API Key 無效或已失效，請重新確認並更新 Key。")
+            # If it's a quota error or other error, try the next model
+            continue
+        except Exception as e:
+            last_err_msg = str(e)
+            continue
+            
+    # If all models failed, raise custom error
+    if "QUOTA_EXCEEDED" in last_err_msg:
+        raise RuntimeError(
+            "QUOTA_EXCEEDED: 所有 Gemini 文本模型 (3.5/2.5/1.5/2.0) 的免費生圖優化額度皆已耗盡。\n"
+            "請至 aistudio.google.com/apikey 建立新的 API Key，或直接輸入英文 Prompt 生圖（跳過 AI Enhance）。"
+        )
+    raise RuntimeError(f"Enhancement failed: {last_err_msg}")
 
 
 def b64_to_pil(b64: str) -> Image.Image:
