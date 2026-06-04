@@ -380,7 +380,7 @@ def _init():
         try:
             secret = st.secrets.get("GOOGLE_API_KEY", "")
             if secret:
-                st.session_state.api_key = secret
+                st.session_state.api_key = secret.strip()
                 st.session_state.key_from_secret = True
         except Exception:
             pass
@@ -503,8 +503,8 @@ def call_enhance(prompt: str, api_key: str) -> str:
         "Output ONLY the final prompt — no introductions, markdown, or quotes."
     )
     
-    # Try models in order: gemini-3.5-flash -> gemini-2.5-flash -> gemini-1.5-flash -> gemini-2.0-flash
-    models = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"]
+    # Try models in order: gemini-3.5-flash -> gemini-2.5-flash -> gemini-3-flash -> gemini-2-flash -> gemini-1.5-flash
+    models = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3-flash", "gemini-2-flash", "gemini-1.5-flash"]
     last_err_msg = ""
     
     for idx, model_name in enumerate(models):
@@ -536,13 +536,14 @@ def call_enhance(prompt: str, api_key: str) -> str:
             last_err_msg = str(e)
             continue
             
-    # If all models failed, raise custom error
-    if "QUOTA_EXCEEDED" in last_err_msg:
-        raise RuntimeError(
-            "QUOTA_EXCEEDED: 所有 Gemini 文本模型 (3.5/2.5/1.5/2.0) 的免費生圖優化額度皆已耗盡。\n"
-            "請至 aistudio.google.com/apikey 建立新的 API Key，或直接輸入英文 Prompt 生圖（跳過 AI Enhance）。"
-        )
-    raise RuntimeError(f"Enhancement failed: {last_err_msg}")
+    # If all models failed, raise the actual error message with a helpful tip
+    err_prefix = ""
+    if "QUOTA_EXCEEDED" in last_err_msg or "429" in last_err_msg:
+        err_prefix = "⚠️ Gemini API 速率限制或配額已超限 (429)。請稍後再試，或直接輸入英文 Prompt 進行生圖（跳過 AI Enhance）。\n詳細錯誤："
+    elif "AUTH_ERROR" in last_err_msg or "401" in last_err_msg or "403" in last_err_msg:
+        err_prefix = "⚠️ API Key 無效或已失效 (401/403)。請重新確認並更新 Key。\n詳細錯誤："
+    
+    raise RuntimeError(f"{err_prefix}{last_err_msg}")
 
 
 def b64_to_pil(b64: str) -> Image.Image:
