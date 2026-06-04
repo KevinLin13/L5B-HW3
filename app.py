@@ -503,9 +503,10 @@ def call_enhance(prompt: str, api_key: str) -> str:
         "Output ONLY the final prompt — no introductions, markdown, or quotes."
     )
     
-    # Try models in order: gemini-3.5-flash -> gemini-2.5-flash -> gemini-3-flash -> gemini-2-flash -> gemini-1.5-flash
-    models = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3-flash", "gemini-2-flash", "gemini-1.5-flash"]
-    last_err_msg = ""
+    # Try models in order: gemini-3.5-flash -> gemini-2.5-flash -> gemini-2.5-pro -> gemini-2.0-flash -> gemini-1.5-flash
+    models = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]
+    attempts = []
+    significant_err_msg = ""
     
     for idx, model_name in enumerate(models):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
@@ -524,26 +525,34 @@ def call_enhance(prompt: str, api_key: str) -> str:
             )
             if text:
                 return text
+            else:
+                attempts.append(f"• {model_name}: returned empty response")
         except RuntimeError as e:
             msg = str(e)
-            last_err_msg = msg
+            attempts.append(f"• {model_name}: {msg}")
             # Authentication errors should halt immediately (no model fallback will fix invalid key)
             if "AUTH_ERROR" in msg or "401" in msg or "403" in msg:
-                raise RuntimeError("AUTH_ERROR: API Key 無效或已失效，請重新確認並更新 Key。")
-            # If it's a quota error or other error, try the next model
+                raise RuntimeError(f"AUTH_ERROR: API Key 無效或已失效，請重新確認並更新 Key。\n詳細錯誤：{msg}")
+            
+            # 429 Quota errors are the most significant errors; track them
+            if "QUOTA_EXCEEDED" in msg or "429" in msg:
+                significant_err_msg = msg
             continue
         except Exception as e:
-            last_err_msg = str(e)
+            msg = str(e)
+            attempts.append(f"• {model_name}: {msg}")
             continue
             
-    # If all models failed, raise the actual error message with a helpful tip
-    err_prefix = ""
-    if "QUOTA_EXCEEDED" in last_err_msg or "429" in last_err_msg:
-        err_prefix = "⚠️ Gemini API 速率限制或配額已超限 (429)。請稍後再試，或直接輸入英文 Prompt 進行生圖（跳過 AI Enhance）。\n詳細錯誤："
-    elif "AUTH_ERROR" in last_err_msg or "401" in last_err_msg or "403" in last_err_msg:
-        err_prefix = "⚠️ API Key 無效或已失效 (401/403)。請重新確認並更新 Key。\n詳細錯誤："
+    # If all models failed, raise a detailed error message showing all attempts
+    details = "\n".join(attempts)
     
-    raise RuntimeError(f"{err_prefix}{last_err_msg}")
+    err_prefix = ""
+    if significant_err_msg:
+        err_prefix = "⚠️ Gemini API 速率限制或配額已超限 (429)。請稍後再試，或直接輸入英文 Prompt 進行生圖（跳過 AI Enhance）。\n\n"
+    elif any("404" in a for a in attempts):
+        err_prefix = "⚠️ 所有 Gemini 文本模型呼叫失敗，請確認您的 Google AI Studio API Key 或專案權限狀態。\n\n"
+    
+    raise RuntimeError(f"{err_prefix}【詳細錯誤紀錄】\n{details}")
 
 
 def b64_to_pil(b64: str) -> Image.Image:
