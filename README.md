@@ -3,153 +3,63 @@
 > **AI 輔助程式開發（AI-Assisted Development）實作作業**  
 > 使用 Antigravity IDE 內建的 AI Agent 加速完成本專案開發
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://l5b-hw3-ef8dqoh7rawjyieqhjxbsi.streamlit.app/)
-
-**🌐 線上體驗網址：[https://l5b-hw3-ef8dqoh7rawjyieqhjxbsi.streamlit.app/](https://l5b-hw3-ef8dqoh7rawjyieqhjxbsi.streamlit.app/)**
-
 ---
 
-> [!IMPORTANT]
-> **📢 關於 Gemini API 機制與免費生圖管道的致歉與修正說明**
-> 
-> 這是我需要向你致歉並修正的地方。我先前的說明**有些混淆了 Google 不同的產品線，對 Gemini API 的機制給出了錯誤的解釋**。
-> 
-> 為了不讓你多花冤枉錢，請以下面最新的官方邏輯與收費規則為準：
-> 
-> ### 1. 修正：Gemini API 的「程式碼串接」並沒有提供免費的生圖額度
-> 
-> 雖然 Gemini API 在文字處理與多模態輸入（例如：丟圖檔或影片給 AI 辨識分析）上有提供免費的速率限制方案（Free Tier），但如果是要讓 API 輸出並生成全新的圖片（例如呼叫 `gemini-3.1-flash-image` 或 `imagen` 系列模型），從第一張圖片開始就會直接計費。
-> 
-> #### 透過 API 呼叫（程式串接）
-> * **收費機制**：圖片生成相關的 API 路由**沒有免費方案**。必須為 Google Cloud 專案連結有效的帳單帳戶、啟用付費層級（Paid Tier），才能成功發送生圖要求。
-> * **計費方式**：費用是依據生成的圖片解析度與採用的模型來計算。例如，基本款的 `Imagen 4 Fast` 每張大約 `$0.02` 美元；若是使用支援原生多模態與對話式編輯的 `Gemini 3.1 Flash Image`，預設 1024px 的圖片每張大約 `$0.067` 美元（批次處理則有 50% 折扣）。
-> 
-> ### 2. 你現在的狀態是什麼？
-> 
-> 從你提供的第二張截圖來看，你已經成功把專案升級到了 **Paid 1（付費第 1 級）**。
-> 
-> * **在 Paid Tier（付費層級）下：** 所有的請求（包含文字、生圖）都**不再享有任何免費額度**，而是完全改為「按量計費（Pay-as-you-go）」，也就是從頭開始每呼叫一次就扣一次錢。
-> * **因為你目前餘額是 NT$0：** 雖然你已經切換成付費管道，但系統一查發現裡面沒錢可以扣，所以你在呼叫 API時，它才會繼續噴 429 錯誤或拒絕連線。
-> 
-> ---
-> 
-> ### 🛠️ 結論與建議
-> 
-> 如果你今天原本的目的是「想要一毛錢都不花，只用免費額度」：
-> 
-> > 💡 **解決方法：** 請選用本專案提供的 **`Microsoft Designer (Bing)` 免費金鑰生圖引擎**。如果是要呼叫 Gemini API，請點擊左側選單的 **Projects** 或 **API Keys**，把專案計費層級改回 **Free**（但請記得，免費層級下無法使用 API 進行圖片生成，僅能使用文字/對話模型）。
-> 
-> 如果你本來就打算**儲值以呼叫 Gemini 官方生圖模型**：
-> 
-> > 💡 **解決方法：** 那你就必須點選 **Buy credits** 至少儲值最低金額（官方規定最低為 $10 美元，約台幣 NT$300 多元）。儲值完成後，你的 Paid 1 就會正式運作，程式便能正常呼叫 `gemini-3.1-flash-image` 進行生圖。
-> 
-> ---
-> 
-> ### 🌍 網路上的其他免費生圖管道（2026年最主流推薦）
-> 
-> 有的，網路上其實有非常多**完全免費**、或者**提供每日免費額度**的強大生圖工具。如果你不想在 Google AI Studio 儲值，可以試試看以下幾個目前（2026年）最主流且好用的免費管道：
-> 
-> #### 1. 免費額度最慷慨：微軟 Microsoft Designer (Bing Image Creator)
-> 
-> * **核心模型**：DALL-E 3 / GPT Image 系列。
-> * **免費機制**：只要登入微軟帳號就能**完全免費、無限次生成**！
-> * **特點**：每天會送你 15~25 個「快速生成點數（Boosts）」，點數用完只是生成速度變慢（需要等 30~60 秒），但**依然可以繼續畫，不限張數**。它對中文的理解能力很好，畫風也很均衡。
-> 
-> #### 2. 想要繼續用 Google 的最新生圖模型：網頁版 Google Gemini (非 API)
-> 
-> * **核心模型**：Imagen 3 / Nano Banana 2
-> * **免費機制**：去一般的 **[Google Gemini 網頁版/App](https://gemini.google.com/)**，直接用聊天對話的方式叫它畫圖。
-> * **特點**：雖然 API 專案要收費，但**消費級的 Gemini 網頁版 App 是有提供每日免費生圖額度的（有每日上限）**。這裡使用的通常就是 Google 最新引以為傲、物理擬真度極高的影像模型。
-> 
-> #### 3. 字體渲染、標誌設計最強：Ideogram
-> 
-> * **核心模型**：Ideogram 3.0
-> * **免費機制**：每天免費提供約 10 次生成機會（一次出 4 張圖，一天約 40 張）。
-> * **特點**：如果你的圖片裡需要出現**精準、不扭曲的英文單字或句子**（例如設計 Logo、海報、路標），Ideogram 是目前公認全行業最強的模型。
-> 
-> #### 4. 寫實與動漫風格頂級：Leonardo.ai
-> 
-> * **核心模型**：Phoenix 模型 / 支援 FLUX
-> * **免費機制**：每天自動重置 **150 個免費代幣**（大概可以免費生 15~30 張高品質圖）。
-> * **特點**：非常適合拿來畫遊戲道具、動漫風格、3D 盲盒或極致寫實的人像。它還內建畫布編輯器，功能非常專業。
-> 
-> #### 5. 開源黑馬免費體驗：FLUX 相關線上 Demo
-> 
-> * **核心模型**：FLUX 2.0 (Schnell / Dev)
-> * **免費機制**：FLUX 是目前最強大的開源生圖模型，在 **Hugging Face Spaces** 或 **Together.ai / Replicate** 等平台上都有開發者提供的免費 Demo 網頁可以無限或有限度地試用。
-> * **特點**：細節處理和肢體、手指的擬真度甚至超越舊版的 Midjourney。
-> 
-> ---
-> 
-> #### 💡 總結建議
-> 
-> * 如果你想要**完全不用管額度、隨便畫** ➡️ 首選 **Microsoft Designer (Bing)**。
-> * 如果你想試試 **Google 最新的物理寫實與人像一致性** ➡️ 直接去 **Gemini 網頁版** 呼叫它生圖。
-> * 如果想要圖片裡有**完美的藝術字體** ➡️ 用 **Ideogram**。
+## 🔗 線上體驗網址
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://l5b-hw3-ef8dqoh7rawjyieqhjxbsi.streamlit.app/)  
+**👉 [點此開啟網頁應用程式](https://l5b-hw3-ef8dqoh7rawjyieqhjxbsi.streamlit.app/)**
 
 ---
 
 ## 📖 專案簡介
 
-本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini 3.1 Flash Image** 模型進行 AI 繪圖。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
+本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式。為了解決使用者在免費額度與進階繪圖需求之間的平衡，本系統整合了兩種獨立的生圖引擎：
+
+1. **🎨 Microsoft Designer (Bing) — 100% 免費且免金鑰**：
+   - 適合想要快速、免登入、無限制次數生圖的使用者。
+   - 基於微軟 DALL-E 3 圖像生成技術，對中文描述理解力強，物理擬真度高。
+2. **🪐 Google Gemini 3.1 Flash Image — 進階付費繪圖**：
+   - 適合需要進行專業 API 整合，或體驗 Google 原生多模態編輯的使用者。
+   - 使用 `gemini-3.1-flash-image` 模型，需要使用者提供個人的 Google AI Studio API Key，且該專案必須**啟用帳單與信用卡儲值**。
 
 ### ✨ 主要功能
-
-| 功能 | 說明 |
-|------|------|
-| 🎨 Art Style 風格選擇 | 無風格 / 宇宙科幻 / 賽博龐克 / 奇幻史詩 / 寫實攝影 / 動漫風格 |
-| 📐 Aspect Ratio 尺寸 | 1:1 正方形 / 16:9 橫幅 / 9:16 直幅 |
-| 💡 Inspire Me | 隨機生成靈感提示詞 |
-| 🚀 Gemini 生圖引擎 | 呼叫 `gemini-3.1-flash-image` 進行繪圖（**需啟用付費專案與帳單儲值**） |
-| ⬇️ 下載圖片 | 一鍵下載 PNG 格式圖像 |
-| 🌌 歷史紀錄 | 保留最近 20 筆生成紀錄，可一鍵重載或個別下載 |
+* **雙引擎切換**：可隨時切換免費的微軟引擎與付費的 Gemini 引擎。
+* **藝術風格預設 (Art Style)**：提供科幻宇宙、賽博龐克、奇幻史詩、寫實攝影、動漫風格等多種預設詞綴。
+* **尺寸比例調整 (Aspect Ratio)**：支援 1:1 正方形、16:9 寬螢幕、9:16 直幅比例。
+* **隨機靈感 (Inspire)**：內建多個創意 Prompt，一鍵激發創作靈感。
+* **作品管理與下載**：生圖完成後可直接下載高品質 PNG 檔，並內建最近 20 筆歷史生成紀錄的歷史畫廊，支援一鍵載回與獨立下載。
+* **金鑰診斷面板**：提供視覺化的 API 連線與權限診斷，即時查驗金鑰可用模型與帳單權限。
 
 ---
 
 ## 🛠️ 技術棧
 
-- **框架**：[Streamlit](https://streamlit.io/) (Python)
-- **生圖模型**：`gemini-3.1-flash-image`（**付費生圖**） / Microsoft Designer (Bing)（免金鑰免費備份）
-- **API**：[Google AI Studio](https://aistudio.google.com/) Gemini API
-- **部署平台**：Streamlit Community Cloud
-
-> ⚠️ **注意**：本專案已支援 `gemini-3.1-flash-image`（**付費生圖**），免費生圖請選用 Microsoft Designer (Bing) 模式。
+* **前端與應用框架**：[Streamlit](https://streamlit.io/) (Python)
+* **AI 生圖模型**：
+  * `gemini-3.1-flash-image` (Google Gemini 3.1 付費生圖模型)
+  * Microsoft Designer (Bing 備用免費生圖管道)
+* **API 整合**：[Google AI Studio](https://aistudio.google.com/) Gemini API (REST Endpoint)
+* **部署平台**：Streamlit Community Cloud
 
 ---
 
 ## 🚀 部署流程
 
-本專案採用目前最便利、也最主流的 Streamlit 部署方式：
+本專案採用 **GitHub 儲存庫 ➜ Streamlit Community Cloud** 雲端部署，幾分鐘內即可完成發布：
 
-```
-本地寫好程式  →  Push 到 GitHub  →  串接 Streamlit Community Cloud 完成部署
-```
+### Step 1｜準備本地專案檔案
+在專案資料夾中，確保包含以下核心檔案：
+* **`app.py`**：主要應用邏輯程式碼。
+* **`requirements.txt`**：套件依賴清單。其內容如下：
+  ```
+  streamlit>=1.35.0
+  requests>=2.31.0
+  Pillow>=10.0.0
+  ```
+* **`.streamlit/config.toml`**：主題設定（深空暗色主題）。
+* **`.gitignore`**：排除敏感的本機 secrets 設定檔。
 
-> ⚠️ **關鍵技術細節**：Streamlit 是基於 **Python** 的網頁框架。  
-> 上傳的主程式應為 `.py` 檔（`app.py`），而非前端 React 採用的 `.tsx` 檔。  
-> 如果參考 React 版型，需要「**用 Python Streamlit 重寫**」，而非直接上傳 `.tsx`。
-
-### Streamlit 部署 4 步驟
-
-#### Step 1｜準備專案檔案（本地端）
-
-在專案資料夾中，至少需要準備以下兩個核心檔案：
-
-- **主程式檔案（`app.py`）**：用 Python 撰寫的 Streamlit 程式碼
-- **套件清單（`requirements.txt`）**：告訴 Streamlit 伺服器需要安裝哪些 Python 套件
-
-> 💡 **小技巧**：在終端機輸入 `pip freeze > requirements.txt` 可自動產生套件清單，  
-> 或手動建立文字檔，寫入需要的套件名稱。
-
-本專案的 `requirements.txt`：
-```
-streamlit>=1.35.0
-requests>=2.31.0
-Pillow>=10.0.0
-```
-
-#### Step 2｜將程式碼 Push 到 GitHub
-
+### Step 2｜程式碼上傳 GitHub
 ```bash
 git init
 git remote add origin https://github.com/KevinLin13/L5B-HW3.git
@@ -158,23 +68,17 @@ git commit -m "feat: Gemini Studio Text-to-Image app"
 git push -u origin master
 ```
 
-#### Step 3｜登入 Streamlit Community Cloud
-
-1. 前往 [share.streamlit.io](https://share.streamlit.io)
-2. 點擊 **"Sign in"** → 選擇 **"Continue with GitHub"** 連動登入
-
-#### Step 4｜串接與發布
-
-1. 登入後點擊右上角 **"New app"**
-2. 設定部署參數：
-   - **Repository**：`KevinLin13/L5B-HW3`
-   - **Branch**：`master`
-   - **Main file path**：`app.py`
-3. 點擊 **"Advanced settings" → "Secrets"**，填入 API 金鑰：
+### Step 3｜在 Streamlit Community Cloud 上部署
+1. 登入 [share.streamlit.io](https://share.streamlit.io) 並連動 GitHub 帳號。
+2. 點擊 **"New app"**，設定專案參數：
+   * **Repository**：`KevinLin13/L5B-HW3`
+   * **Branch**：`master`
+   * **Main file path**：`app.py`
+3. 點擊 **"Advanced settings" ➜ "Secrets"**，貼上您在 AI Studio 申請的 API Key：
    ```toml
-   GOOGLE_API_KEY = "AIza...你的金鑰..."
+   GOOGLE_API_KEY = "AIzaSy...（您的 API 金鑰）"
    ```
-4. 點擊 **"Deploy!"**，幾分鐘後即可獲得公開網址
+4. 點擊 **"Deploy!"** 進行部署，完成後即可獲取公開網址。
 
 ---
 
@@ -182,61 +86,60 @@ git push -u origin master
 
 ```
 L5B-HW3/
-├── app.py                    # 主程式（Streamlit + Gemini API）
-├── requirements.txt          # Python 套件清單
-├── .gitignore                # 排除敏感檔案（secrets.toml 不上傳）
+├── app.py                    # 主程式（Streamlit 應用與 API 邏輯）
+├── requirements.txt          # Python 套件依賴清單
+├── .gitignore                # Git 排除清單
 └── .streamlit/
-    ├── config.toml           # Streamlit 主題設定（深空暗色）
-    └── secrets.toml          # 本機測試用金鑰（不上傳 GitHub）
+    ├── config.toml           # Streamlit 深空暗色主題設定
+    └── secrets.toml          # 本地端金鑰設定檔（已加入 gitignore，防止洩漏）
 ```
 
 ---
 
 ## 🔑 API 金鑰取得方式
 
-1. 前往 [aistudio.google.com](https://aistudio.google.com/)
-2. 點擊 **"Get API key"** → **"Create API key in new project"**（建立全新專案以確保有免費配額）
-3. 複製金鑰（格式為 `AIza...`）
-4. 在 Streamlit app 上方的「🔑 Set Key」輸入金鑰，或部署時設定為 Secret
+若要使用 Google Gemini 3.1 生圖引擎，請遵循以下步驟取得金鑰：
 
-> 🔒 **安全提醒**：API 金鑰僅存在於瀏覽器 Session，不會儲存在伺服器端。
-
----
-
-### 📊 API 呼叫速率限制 (以 Tier 1 付費層級為例)
-
-下表為本專案所呼叫之核心模型的 Rate Limits 速率上限：
-
-| 模型與識別碼 (Model ID) | 類別 | 每分鐘請求數 (RPM) | 每天最大請求數 (RPD) | 每分鐘 Token 數 (TPM) |
-|---|---|---|---|---|
-| **Gemini 3.1 Flash Image** (`gemini-3.1-flash-image`) | AI 影像生成 (Nano Banana 2) | 100 RPM | 1,000 RPD | 200,000 TPM |
-| **Imagen 4 Generate** | 舊版影像生成引擎 | 10 RPM | 70 RPD | - |
-
----
-
-### 常見錯誤排解
-
-| `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. Gemini API 影像生成不設免費額度。請至 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結並啟用帳單與儲值。<br>2. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
-| `429 Quota exceeded, limit: 0` (對話模型) | API Key 所在專案沒有免費配額 | 至 aistudio.google.com 重新建立 Key，選「**Create API key in new project**」以重置免費額度。 |
-| `401 / 403 Invalid API key` | 金鑰錯誤或已失效 | 重新複製正確的 Key 並貼上 |
-| `No image returned` | Prompt 觸發安全過濾 | 修改 Prompt，避免敏感詞彙 |
+1. 前往 **[Google AI Studio](https://aistudio.google.com/)**。
+2. 點擊左上角 **"Get API key"**。
+3. 選擇 **"Create API key in new project"** 建立一個新的 Google Cloud 專案金鑰。
+4. 複製產生的金鑰（格式為 `AIzaSy...`）。
+5. 在本系統上方的「🔑 Set Key」折疊面板中輸入並保存，或在雲端部署時加入為 `GOOGLE_API_KEY` Secret。
 
 ---
 
 ## 💡 開發心得：AI 輔助開發流程
 
-本作業使用 **Antigravity IDE** 內建的 AI Agent 完成，體驗了現代 AI 輔助程式開發流程：
+本專案全程使用 **Antigravity IDE** 內建的 AI Agent 進行開發，實踐了現代化的 AI 協同開發模式：
 
-1. 用自然語言描述需求（Prompt Engineering）
-2. AI 自動生成完整的 `app.py` 程式碼與 `requirements.txt`
-3. 人工審閱、調整並修正細節
-4. 透過 AI 協助完成 Git 操作與 GitHub 推送
-5. 部署至 Streamlit Community Cloud
+1. **視覺參考與框架轉譯**：參考 React (.tsx) 版型的視覺排版，引導 AI 將其轉譯為 Python Streamlit 的網頁架構，大幅縮短了原型建置時間。
+2. **多模式架構設計**：透過 AI 協助快速整合多個生圖 API（包含 Microsoft Designer 與 Gemini v1beta REST 路由），並設計了輕量、不重刷頁面的狀態回呼與診斷面板。
+3. **錯誤攔截與透明排查**：在測試中發現了 Streamlit 狀態同步 bug（Inspire 按鈕導致的文字域不更新問題），AI 能夠精確定位 Streamlit 內部 session_state 的生命週期並給出覆寫 key 的修正方案。
 
-> **關鍵技術修正 Prompt**：  
-> *"I want to create a Python Streamlit web app for Text-to-Image generation. We will use Google's Gemini model (`gemini-3.1-flash-image`) for image generation. Please help me build the app as a single `app.py` file, incorporating text inputs and image displays inspired by the layout of `text_to_image_app.tsx`, so that it can be deployed directly to streamlit.io. Please provide the Python code and `requirements.txt`."*
->
-> 重點：明確指定「用 Python Streamlit（`app.py`）重寫，**參考** React 版型的視覺佈局，而非直接上傳 `.tsx`」，並指定免費的 Gemini 圖像生成模型，這樣 AI 才能生成正確可執行的程式碼。
+---
+
+## ⚠️ 注意事項
+
+### 1. Gemini API 生圖計費規則重要說明
+> [!IMPORTANT]
+> **Gemini API 的「程式碼串接（API 呼叫）」沒有提供免費的生圖額度。**
+> * 雖然 Gemini API 在文字對話與多模態輸入（如圖片辨識、影片分析）上有提供免費方案（Free Tier），但**生圖模型（Imagen 4 系列或 `gemini-3.1-flash-image`）從第一張圖片開始就會直接計費**。
+> * **啟用方式**：您必須登入 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將您的金鑰專案連結到已啟用信用卡的**付費帳單帳戶（Paid Tier）**。
+> * **計費價格**：基本款 `Imagen 4 Fast` 每張約 `$0.02` 美元；支援原生多模態的 `Gemini 3.1 Flash Image` 1024px 每張約 `$0.067` 美元（批次處理折半）。
+> * **免費替代方案**：若不想綁定信用卡或儲值，請使用專案內建的 **Microsoft Designer (Bing)** 引擎，可享 100% 免費生圖。
+
+### 2. Gemini 3.1 API 呼叫上限 (Tier 1 速率限制)
+| 模型識別碼 (Model ID) | 類別 | 每分鐘請求數 (RPM) | 每天最大請求數 (RPD) | 每分鐘 Token 數 (TPM) |
+|---|---|---|---|---|
+| **Gemini 3.1 Flash Image** | AI 影像生成 | 100 RPM | 1,000 RPD | 200,000 TPM |
+| **Imagen 4 Generate** | 舊版影像生成 | 10 RPM | 70 RPD | - |
+
+### 3. 常見錯誤與排除對策
+| 錯誤代碼 / 訊息 | 可能原因 | 排除對策 |
+|---|---|---|
+| `429 Quota exceeded, limit: 0` | 您的 API 專案未連結付費帳單或餘額為 0 | 1. 請至 Google Cloud 啟用帳單帳戶並儲值。<br>2. 或者切換回免金鑰的 **Microsoft Designer (Bing)** 免費引擎。 |
+| `401 / 403 Invalid API key` | API Key 複製錯誤或已失效 | 請至 AI Studio 重新複製正確的 Key 並貼上。 |
+| `No image returned` | Prompt 內容觸發安全敏感詞過濾 | 修改您的 Prompt 描述，避免敏感或不當詞彙。 |
 
 ---
 
