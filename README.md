@@ -125,9 +125,8 @@ L5B-HW3/
 
 ### 常見錯誤排解
 
-| 錯誤訊息 | 原因 | 解決方式 |
-|---------|------|---------|
-| `429 Quota exceeded, limit: 0` | API Key 所在專案沒有免費配額 | 至 aistudio.google.com 重新建立 Key，選「**Create API key in new project**」 |
+| `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. 登入 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結以開啟付費方案。<br>2. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
+| `429 Quota exceeded, limit: 0` (對話模型) | API Key 所在專案沒有免費配額 | 至 aistudio.google.com 重新建立 Key，選「**Create API key in new project**」以重置免費額度。 |
 | `401 / 403 Invalid API key` | 金鑰錯誤或已失效 | 重新複製正確的 Key 並貼上 |
 | `No image returned` | Prompt 觸發安全過濾 | 修改 Prompt，避免敏感詞彙 |
 

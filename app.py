@@ -367,6 +367,8 @@ def _init():
         "success_msg":    "",
         "show_key_panel": False,
         "generating":     False,
+        "diag_results":   None,
+        "image_model":    "🖼️ Pollinations AI (Flux - Free)",
     }
     for k, v in defs.items():
         if k not in st.session_state:
@@ -534,6 +536,43 @@ def b64_to_bytes(b64: str) -> bytes:
     return base64.b64decode(b64)
 
 
+def call_list_models(api_key: str) -> dict:
+    """Query Google AI Studio ListModels endpoint using the user's API Key."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        r = requests.get(url, timeout=20)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        try:
+            err_json = r.json()
+            msg = err_json.get("error", {}).get("message", str(e))
+        except Exception:
+            msg = str(e)
+        raise RuntimeError(msg)
+
+
+def call_pollinations_image(prompt: str, aspect: str) -> str:
+    """Return base64-encoded PNG via Pollinations.ai (free, keyless Flux model)."""
+    w, h = 1024, 1024
+    if aspect == "16:9 Widescreen":
+        w, h = 1024, 576
+    elif aspect == "9:16 Portrait":
+        w, h = 576, 1024
+        
+    encoded_prompt = requests.utils.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={w}&height={h}&nologo=true&private=true&model=flux"
+    try:
+        r = requests.get(url, timeout=90)
+        r.raise_for_status()
+        b64 = base64.b64encode(r.content).decode("utf-8")
+        if not b64:
+            raise RuntimeError("Received empty response from Pollinations.")
+        return b64
+    except Exception as e:
+        raise RuntimeError(f"Pollinations generation failed: {e}")
+
+
 # ═══════════════════════════════════════════════════════════
 # ── HERO HEADER ────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════
@@ -604,6 +643,7 @@ if st.session_state.show_key_panel or not has_key:
                 st.session_state.api_key = k
                 st.session_state.key_from_secret = False
                 st.session_state.show_key_panel = False
+                st.session_state.diag_results = None
                 st.session_state.success_msg = "✅ API key saved for this session."
             else:
                 st.session_state.error_msg = "Please paste a valid API key first."
@@ -612,9 +652,99 @@ if st.session_state.show_key_panel or not has_key:
         if st.button("🗑 Clear Key", key="btn_clear_key", use_container_width=True):
             st.session_state.api_key = ""
             st.session_state.key_from_secret = False
+            st.session_state.diag_results = None
             st.rerun()
 
+    # Billing warning & diagnostics panel
+    if has_key:
+        st.markdown("""
+        <div class="banner banner-warn" style="margin-top:12px;">
+          ⚠️ <b>生圖限額提醒 (Billing & Quota Check)</b>：<br>
+          Google Gemini 3.1 Flash Image 生圖模型<b>不提供預設的免費額度</b>。如果您的 API 專案未連結 Google Cloud 帳單與信用卡，呼叫生圖時會遇到 <code>limit: 0</code> (Quota Exceeded) 錯誤。<br>
+          請至 <a href="https://console.cloud.google.com/billing" target="_blank" style="color:#f59e0b;font-weight:700;">Google Cloud Console Billing</a> 連結您的專案，或建立新 Key 以嘗試。
+        </div>""", unsafe_allow_html=True)
+
+        if st.button("🔍 Run API Diagnostics (測試金鑰與授權模型)", key="btn_diagnostics", use_container_width=True):
+            with st.spinner("Testing connection to Google AI..."):
+                try:
+                    res = call_list_models(st.session_state.api_key)
+                    models = res.get("models", [])
+                    if models:
+                        model_names = [m.get("name", "") for m in models]
+                        model_displays = [m.get("displayName", "") for m in models]
+                        
+                        has_img_model = any("gemini-3.1-flash-image" in name for name in model_names)
+                        has_txt_model = any("gemini-3.5-flash" in name for name in model_names)
+                        
+                        st.session_state.diag_results = {
+                            "success": True,
+                            "model_names": model_names,
+                            "model_displays": model_displays,
+                            "has_img_model": has_img_model,
+                            "has_txt_model": has_txt_model
+                        }
+                        st.session_state.success_msg = "✅ API Key 連線測試成功！"
+                    else:
+                        st.session_state.diag_results = {
+                            "success": False,
+                            "error": "API 連線成功，但未傳回任何模型列表。"
+                        }
+                except Exception as ex:
+                    st.session_state.diag_results = {
+                        "success": False,
+                        "error": str(ex)
+                    }
+            st.rerun()
+
+    # Display diagnostics results if available
+    if st.session_state.get("diag_results"):
+        diag = st.session_state.diag_results
+        st.markdown("<br>", unsafe_allow_html=True)
+        if diag["success"]:
+            st.markdown("##### 📋 API 金鑰授權模型狀態")
+            st.markdown(f"""
+            | 功能 | 模型名稱 (Model ID) | 狀態 |
+            |---|---|---|
+            | 🖼️  **生圖模型** | `models/gemini-3.1-flash-image` | {'✅ 已授權可用' if diag["has_img_model"] else '❌ 未授權 (帳單限制)'} |
+            | 🔮  **Prompt優化** | `models/gemini-3.5-flash` | {'✅ 已授權可用' if diag["has_txt_model"] else '❌ 未授權'} |
+            """)
+            
+            if not diag["has_img_model"]:
+                st.markdown("""
+                > ⚠️  **診斷分析**：您的 API 金鑰**尚未取得** `gemini-3.1-flash-image` 權限。  
+                > 請至 [console.cloud.google.com/billing](https://console.cloud.google.com/billing) 確認您的 Google Cloud 專案已綁定信用卡與帳單帳戶，或是前往 AI Studio 重新建立一個新專案的 API Key。
+                """)
+            else:
+                st.markdown("""
+                > 👍  **診斷分析**：金鑰已具有 `gemini-3.1-flash-image` 的呼叫權限！  
+                > 如果生圖仍失敗，請確認該 Google Cloud 專案是否連結到啟用的帳單帳戶（即使是免費額度，部分模型亦需要 billing link 作為身份驗證）。
+                """)
+            
+            with st.expander("📂 展開查看所有可用的 {:,} 個模型".format(len(diag["model_names"]))):
+                for name, disp in zip(diag["model_names"], diag["model_displays"]):
+                    st.write(f"- **{disp}** (`{name}`)")
+        else:
+            st.error(f"❌ 診斷連線失敗：{diag['error']}")
+
 st.markdown("<hr>", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════
+# ── ENGINE / MODEL SELECTION ───────────────────────────────
+# ═══════════════════════════════════════════════════════════
+st.markdown('<div class="section-title">⚙️ &nbsp;Image Generation Engine</div>', unsafe_allow_html=True)
+model_pick = st.radio(
+    "image_model",
+    options=[
+        "🖼️ Pollinations AI (Flux - 100% Free & Keyless)",
+        "🪐 Gemini 3.1 Flash Image (Paid Tier / Billing Required)"
+    ],
+    index=0 if st.session_state.image_model == "🖼️ Pollinations AI (Flux - Free)" else 1,
+    horizontal=True,
+    key="radio_model",
+    label_visibility="collapsed"
+)
+st.session_state.image_model = "🖼️ Pollinations AI (Flux - Free)" if "Pollinations" in model_pick else "🪐 Gemini 3.1 Flash Image (Paid)"
+st.markdown("<br>", unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -723,8 +853,10 @@ if st.session_state.success_msg:
 # ── GENERATE BUTTON ────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="generate-cta">', unsafe_allow_html=True)
+is_free_model = (st.session_state.image_model == "🖼️ Pollinations AI (Flux - Free)")
+btn_label = "🚀  Generate with Flux (Free)" if is_free_model else "🚀  Generate with Gemini 3.1 Flash Image"
 gen_clicked = st.button(
-    "🚀  Generate with Gemini 3.1 Flash Image (Free)",
+    btn_label,
     key="btn_generate",
     use_container_width=True,
 )
@@ -735,7 +867,7 @@ if gen_clicked:
     if not st.session_state.prompt.strip():
         st.session_state.error_msg = "Please enter a prompt first."
         st.rerun()
-    elif not st.session_state.api_key.strip():
+    elif not is_free_model and not st.session_state.api_key.strip():
         st.session_state.error_msg = "API key is missing. Open the key panel above."
         st.session_state.show_key_panel = True
         st.rerun()
@@ -746,12 +878,16 @@ if gen_clicked:
         spinner_ph = st.empty()
         prog_ph    = st.empty()
 
-        with st.spinner("🪐 Gemini 3.1 Flash Image 正在生成圖像…"):
-            prog_ph.progress(0, text="Connecting to Google AI…")
+        spinner_msg = "🪐 Flux 正在生成圖像…" if is_free_model else "🪐 Gemini 3.1 Flash Image 正在生成圖像…"
+        with st.spinner(spinner_msg):
+            prog_ph.progress(0, text="Connecting to AI Server…")
             time.sleep(0.4)
             prog_ph.progress(25, text="Sending prompt…")
             try:
-                b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
+                if is_free_model:
+                    b64 = call_pollinations_image(final_prompt, st.session_state.aspect)
+                else:
+                    b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
                 prog_ph.progress(85, text="Decoding image…")
                 time.sleep(0.2)
                 prog_ph.progress(100, text="Done!")
