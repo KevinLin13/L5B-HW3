@@ -14,21 +14,22 @@
 > 
 > 這是我需要向你致歉並修正的地方。我先前的說明**有些混淆了 Google 不同的產品線，對 Gemini API 的機制給出了錯誤的解釋**。
 > 
-> 為了不讓你多花冤枉錢，請以下面最新的官方邏輯為準：
+> 為了不讓你多花冤枉錢，請以下面最新的官方邏輯與收費規則為準：
 > 
-> ### 1. 修正與更新：Gemini API 影像生成的新免費額度
+> ### 1. 修正：Gemini API 的「程式碼串接」並沒有提供免費的生圖額度
 > 
-> 在 **Google AI Studio (Gemini API)** 的官方規則中：
+> 雖然 Gemini API 在文字處理與多模態輸入（例如：丟圖檔或影片給 AI 辨識分析）上有提供免費的速率限制方案（Free Tier），但如果是要讓 API 輸出並生成全新的圖片（例如呼叫 `gemini-3.1-flash-image` 或 `imagen` 系列模型），從第一張圖片開始就會直接計費。
 > 
-> * **免費影像模型**（如 `gemini-2.5-flash-image`）：現在 Google AI Studio 提供了 **`gemini-2.5-flash-image` 免費生圖模型**！只要您的 API 專案在「免費層級（Free Tier）」，**無須綁定信用卡或儲值，即可每天免費生成最多 500 張圖片**。
-> * **付費影像模型**（如 `gemini-3.1-flash-image`）：在免費層級下其呼叫配額為 `0` (無法使用/Quota Exceeded)，必須在 Google AI Studio 中將專案升級為付費方案（Paid Tier / 連結帳單並儲值）才能呼叫。
+> #### 透過 API 呼叫（程式串接）
+> * **收費機制**：圖片生成相關的 API 路由**沒有免費方案**。必須為 Google Cloud 專案連結有效的帳單帳戶、啟用付費層級（Paid Tier），才能成功發送生圖要求。
+> * **計費方式**：費用是依據生成的圖片解析度與採用的模型來計算。例如，基本款的 `Imagen 4 Fast` 每張大約 `$0.02` 美元；若是使用支援原生多模態與對話式編輯的 `Gemini 3.1 Flash Image`，預設 1024px 的圖片每張大約 `$0.067` 美元（批次處理則有 50% 折扣）。
 > 
 > ### 2. 你現在的狀態是什麼？
 > 
 > 從你提供的第二張截圖來看，你已經成功把專案升級到了 **Paid 1（付費第 1 級）**。
 > 
 > * **在 Paid Tier（付費層級）下：** 所有的請求（包含文字、生圖）都**不再享有任何免費額度**，而是完全改為「按量計費（Pay-as-you-go）」，也就是從頭開始每呼叫一次就扣一次錢。
-> * **因為你目前餘額是 NT$0：** 雖然你已經切換成付費管道，但系統一查發現裡面沒錢可以扣，所以你在呼叫 API 時，它才會繼續噴 429 錯誤或拒絕連線。
+> * **因為你目前餘額是 NT$0：** 雖然你已經切換成付費管道，但系統一查發現裡面沒錢可以扣，所以你在呼叫 API時，它才會繼續噴 429 錯誤或拒絕連線。
 > 
 > ---
 > 
@@ -36,11 +37,11 @@
 > 
 > 如果你今天原本的目的是「想要一毛錢都不花，只用免費額度」：
 > 
-> > 💡 **解決方法：** 請點擊左側選單的 **Projects** 或 **API Keys**，看看能不能把這個專案的計費層級改回 **Free**，或者直接**重新建立一個新的 API Key/新專案**。只要在「免費層級（Free Tier）」下，你就可以繼續免費呼叫 `gemini-2.0-flash` 等文字模型的免費額度（但請記得，免費層級沒辦法用來生成圖片）。
+> > 💡 **解決方法：** 請選用本專案提供的 **`Microsoft Designer (Bing)` 免費金鑰生圖引擎**。如果是要呼叫 Gemini API，請點擊左側選單的 **Projects** 或 **API Keys**，把專案計費層級改回 **Free**（但請記得，免費層級下無法使用 API 進行圖片生成，僅能使用文字/對話模型）。
 > 
-> 如果你本來就打算**花點小錢買順暢、或真的需要呼叫生圖模型**：
+> 如果你本來就打算**儲值以呼叫 Gemini 官方生圖模型**：
 > 
-> > 💡 **解決方法：** 那你就必須點選 **Buy credits** 至少儲值最低金額（官方規定最低為 $10 美元，約台幣 NT$300 多元，你也可以自訂 Other amount，不一定要選畫面上的 NT$1,000）。儲值完成後，你的 Paid 1 就會正式運作，程式便能正常跑通。
+> > 💡 **解決方法：** 那你就必須點選 **Buy credits** 至少儲值最低金額（官方規定最低為 $10 美元，約台幣 NT$300 多元）。儲值完成後，你的 Paid 1 就會正式運作，程式便能正常呼叫 `gemini-3.1-flash-image` 進行生圖。
 > 
 > ---
 > 
@@ -90,7 +91,7 @@
 
 ## 📖 專案簡介
 
-本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini 2.5/3.1 Flash Image** 模型進行 AI 繪圖。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
+本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini 3.1 Flash Image** 模型進行 AI 繪圖。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
 
 ### ✨ 主要功能
 
@@ -100,7 +101,7 @@
 | 🎨 Art Style 風格選擇 | 無風格 / 宇宙科幻 / 賽博龐克 / 奇幻史詩 / 寫實攝影 / 動漫風格 |
 | 📐 Aspect Ratio 尺寸 | 1:1 正方形 / 16:9 橫幅 / 9:16 直幅 |
 | 💡 Inspire Me | 隨機生成靈感提示詞 |
-| 🚀 Gemini 生圖引擎 | 支援 `gemini-2.5-flash-image`（**免信用卡、每日免費 500 次**）與 `gemini-3.1-flash-image`（進階付費） |
+| 🚀 Gemini 生圖引擎 | 呼叫 `gemini-3.1-flash-image` 進行繪圖（**需啟用付費專案與帳單儲值**） |
 | ⬇️ 下載圖片 | 一鍵下載 PNG 格式圖像 |
 | 🌌 歷史紀錄 | 保留最近 20 筆生成紀錄，可一鍵重載或個別下載 |
 
@@ -109,12 +110,12 @@
 ## 🛠️ 技術棧
 
 - **框架**：[Streamlit](https://streamlit.io/) (Python)
-- **生圖模型**：`gemini-2.5-flash-image`（**免費生圖**） / `gemini-3.1-flash-image`（付費進階） / Microsoft Designer (Bing)（免金鑰備份）
+- **生圖模型**：`gemini-3.1-flash-image`（**付費生圖**） / Microsoft Designer (Bing)（免金鑰免費備份）
 - **Prompt 優化**：`gemini-3.5-flash`（免費配額較大）
 - **API**：[Google AI Studio](https://aistudio.google.com/) Gemini API
 - **部署平台**：Streamlit Community Cloud
 
-> ⚠️ **注意**：本專案已支援 `gemini-2.5-flash-image`（**免費額度**）與 `gemini-3.1-flash-image`（付費生圖）。
+> ⚠️ **注意**：本專案已支援 `gemini-3.1-flash-image`（**付費生圖**），免費生圖請選用 Microsoft Designer (Bing) 模式。
 
 ---
 
@@ -204,7 +205,7 @@ L5B-HW3/
 
 ### 常見錯誤排解
 
-| `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. 這是使用 `gemini-3.1-flash-image` 且未啟用帳單的限制，請切換回 `gemini-2.5-flash-image` 使用免費生圖額度。<br>2. 若要使用 3.1，請至 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結以開啟付費方案。<br>3. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
+| `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. Gemini API 影像生成不設免費額度。請至 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結並啟用帳單與儲值。<br>2. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
 | `429 Quota exceeded, limit: 0` (對話模型) | API Key 所在專案沒有免費配額 | 至 aistudio.google.com 重新建立 Key，選「**Create API key in new project**」以重置免費額度。 |
 | `401 / 403 Invalid API key` | 金鑰錯誤或已失效 | 重新複製正確的 Key 並貼上 |
 | `No image returned` | Prompt 觸發安全過濾 | 修改 Prompt，避免敏感詞彙 |

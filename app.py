@@ -811,16 +811,14 @@ if st.session_state.show_key_panel or not has_key:
                         model_names = [m.get("name", "") for m in models]
                         model_displays = [m.get("displayName", "") for m in models]
                         
-                        has_img_31 = any("gemini-3.1-flash-image" in name for name in model_names)
-                        has_img_25 = any("gemini-2.5-flash-image" in name for name in model_names)
+                        has_img_model = any("gemini-3.1-flash-image" in name for name in model_names)
                         has_txt_model = any("gemini-3.5-flash" in name for name in model_names)
                         
                         st.session_state.diag_results = {
                             "success": True,
                             "model_names": model_names,
                             "model_displays": model_displays,
-                            "has_img_31": has_img_31,
-                            "has_img_25": has_img_25,
+                            "has_img_model": has_img_model,
                             "has_txt_model": has_txt_model
                         }
                         st.session_state.success_msg = "✅ API Key 連線測試成功！"
@@ -845,24 +843,18 @@ if st.session_state.show_key_panel or not has_key:
             st.markdown(f"""
             | 功能 | 模型名稱 (Model ID) | 狀態 |
             |---|---|---|
-            | 🖼️  **免費生圖模型** | `models/gemini-2.5-flash-image` | {'✅ 已授權可用' if diag.get("has_img_25") else '❌ 未授權'} |
-            | 🖼️  **進階生圖模型** | `models/gemini-3.1-flash-image` | {'✅ 已授權可用' if diag.get("has_img_31") else '❌ 未授權 (帳單限制)'} |
+            | 🖼️  **生圖模型** | `models/gemini-3.1-flash-image` | {'✅ 已授權可用' if diag["has_img_model"] else '❌ 未授權 (帳單限制)'} |
             | 🔮  **Prompt優化** | `models/gemini-3.5-flash` | {'✅ 已授權可用' if diag["has_txt_model"] else '❌ 未授權'} |
             """)
             
-            if not diag.get("has_img_25") and not diag.get("has_img_31"):
+            if not diag["has_img_model"]:
                 st.markdown("""
-                > ⚠️  **診斷分析**：您的 API 金鑰**尚未取得**任何 Gemini 生圖模型權限。  
-                > 請至 [console.cloud.google.com/billing](https://console.cloud.google.com/billing) 確認您的 Google Cloud 專案是否已綁定帳單與信用卡，或是前往 AI Studio 重新建立一個新專案的 API Key。
-                """)
-            elif diag.get("has_img_25") and not diag.get("has_img_31"):
-                st.markdown("""
-                > 👍  **診斷分析**：金鑰已具備 `gemini-2.5-flash-image` 免費生圖權限！可以點擊下方「Gemini 2.5 Flash Image」進行免綁信用卡生圖。  
-                > 提示：進階的 `gemini-3.1-flash-image` 則需要為該專案綁定 Google Cloud 帳單與信用卡才能呼叫。
+                > ⚠️  **診斷分析**：您的 API 金鑰**尚未取得** `gemini-3.1-flash-image` 權限。  
+                > 請至 [console.cloud.google.com/billing](https://console.cloud.google.com/billing) 確認您的 Google Cloud 專案已綁定信用卡與帳單帳戶，或是前往 AI Studio 重新建立一個新專案的 API Key。
                 """)
             else:
                 st.markdown("""
-                > 👍  **診斷分析**：金鑰已具有進階生圖模型 `gemini-3.1-flash-image` 的呼叫權限！  
+                > 👍  **診斷分析**：金鑰已具有 `gemini-3.1-flash-image` 的呼叫權限！  
                 > 如果生圖仍失敗，請確認該 Google Cloud 專案是否連結到啟用的帳單帳戶（即使是免費額度，部分模型亦需要 billing link 作為身份驗證）。
                 """)
             
@@ -882,23 +874,14 @@ model_pick = st.radio(
     "image_model",
     options=[
         "🎨 Microsoft Designer (Bing) - 100% Free & Keyless",
-        "🪐 Gemini 2.5 Flash Image (Free Tier / No Billing Required)",
         "🪐 Gemini 3.1 Flash Image (Paid Tier / Billing Required)"
     ],
-    index=(
-        0 if st.session_state.image_model == "Microsoft Designer (Bing)"
-        else (1 if st.session_state.image_model == "gemini-2.5-flash-image" else 2)
-    ),
+    index=0 if st.session_state.image_model == "Microsoft Designer (Bing)" else 1,
     horizontal=True,
     key="radio_model",
     label_visibility="collapsed"
 )
-if "Microsoft" in model_pick:
-    st.session_state.image_model = "Microsoft Designer (Bing)"
-elif "2.5" in model_pick:
-    st.session_state.image_model = "gemini-2.5-flash-image"
-else:
-    st.session_state.image_model = "gemini-3.1-flash-image"
+st.session_state.image_model = "Microsoft Designer (Bing)" if "Microsoft" in model_pick else "gemini-3.1-flash-image"
 st.markdown("<br>", unsafe_allow_html=True)
 
 
@@ -1009,12 +992,7 @@ if st.session_state.success_msg:
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="generate-cta">', unsafe_allow_html=True)
 is_free_model = (st.session_state.image_model == "Microsoft Designer (Bing)")
-if is_free_model:
-    btn_label = "🚀  Generate with Microsoft Designer (Bing) (Free)"
-elif st.session_state.image_model == "gemini-2.5-flash-image":
-    btn_label = "🚀  Generate with Gemini 2.5 Flash Image (Free Tier)"
-else:
-    btn_label = "🚀  Generate with Gemini 3.1 Flash Image (Paid Tier)"
+btn_label = "🚀  Generate with Microsoft Designer (Bing) (Free)" if is_free_model else "🚀  Generate with Gemini 3.1 Flash Image"
 gen_clicked = st.button(
     btn_label,
     key="btn_generate",
@@ -1038,13 +1016,7 @@ if gen_clicked:
         spinner_ph = st.empty()
         prog_ph    = st.empty()
 
-        if is_free_model:
-            spinner_msg = "🪐 Microsoft Designer (Bing) 正在生成圖像…"
-        elif st.session_state.image_model == "gemini-2.5-flash-image":
-            spinner_msg = "🪐 Gemini 2.5 Flash Image 正在生成圖像…"
-        else:
-            spinner_msg = "🪐 Gemini 3.1 Flash Image 正在生成圖像…"
-
+        spinner_msg = "🪐 Microsoft Designer (Bing) 正在生成圖像…" if is_free_model else "🪐 Gemini 3.1 Flash Image 正在生成圖像…"
         with st.spinner(spinner_msg):
             prog_ph.progress(0, text="Connecting to AI Server…")
             time.sleep(0.4)
