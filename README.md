@@ -11,17 +11,17 @@
 
 ## 📖 專案簡介
 
-本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini Imagen 4** 模型進行 AI 繪圖。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
+本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini 2.0 Flash Preview Image Generation** 模型進行 AI 繪圖（免費方案可用）。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
 
 ### ✨ 主要功能
 
 | 功能 | 說明 |
 |------|------|
-| 🔮 AI Enhance Prompt | 使用 Gemini Flash 將中文或簡單描述自動翻譯、擴寫為高品質英文 Prompt |
+| 🔮 AI Enhance Prompt | 使用 Gemini 1.5 Flash 將中文或簡單描述自動翻譯、擴寫為高品質英文 Prompt |
 | 🎨 Art Style 風格選擇 | 無風格 / 宇宙科幻 / 賽博龐克 / 奇幻史詩 / 寫實攝影 / 動漫風格 |
 | 📐 Aspect Ratio 尺寸 | 1:1 正方形 / 16:9 橫幅 / 9:16 直幅 |
 | 💡 Inspire Me | 隨機生成靈感提示詞 |
-| 🚀 Imagen 4 生圖 | 呼叫 Google Imagen 4.0 Ultra 引擎生成圖像 |
+| 🚀 Gemini 2.0 Flash 生圖 | 呼叫 Gemini 2.0 Flash Preview Image Generation 引擎（**免費配額可用**） |
 | ⬇️ 下載圖片 | 一鍵下載 PNG 格式圖像 |
 | 🌌 歷史紀錄 | 保留最近 20 筆生成紀錄，可一鍵重載或個別下載 |
 
@@ -30,10 +30,13 @@
 ## 🛠️ 技術棧
 
 - **框架**：[Streamlit](https://streamlit.io/) (Python)
-- **生圖模型**：Google Imagen 4.0 (`imagen-4.0-generate-001`)
-- **Prompt 優化**：Google Gemini 2.0 Flash
+- **生圖模型**：`gemini-2.0-flash-preview-image-generation`（**Google 免費配額可用**）
+- **Prompt 優化**：`gemini-1.5-flash`（免費配額較大）
 - **API**：[Google AI Studio](https://aistudio.google.com/) Gemini API
 - **部署平台**：Streamlit Community Cloud
+
+> ⚠️ **注意**：本專案已從 `imagen-4.0-generate-001`（需付費）改用  
+> `gemini-2.0-flash-preview-image-generation`，**使用 Google AI Studio 免費 API Key 即可生圖**。
 
 ---
 
@@ -45,6 +48,10 @@
 本地寫好程式  →  Push 到 GitHub  →  串接 Streamlit Community Cloud 完成部署
 ```
 
+> ⚠️ **關鍵技術細節**：Streamlit 是基於 **Python** 的網頁框架。  
+> 上傳的主程式應為 `.py` 檔（`app.py`），而非前端 React 採用的 `.tsx` 檔。  
+> 如果參考 React 版型，需要「**用 Python Streamlit 重寫**」，而非直接上傳 `.tsx`。
+
 ### Streamlit 部署 4 步驟
 
 #### Step 1｜準備專案檔案（本地端）
@@ -55,7 +62,7 @@
 - **套件清單（`requirements.txt`）**：告訴 Streamlit 伺服器需要安裝哪些 Python 套件
 
 > 💡 **小技巧**：在終端機輸入 `pip freeze > requirements.txt` 可自動產生套件清單，  
-> 或手動建立文字檔，寫入需要用到的套件名稱（如本專案的 `streamlit`、`requests`、`Pillow`）。
+> 或手動建立文字檔，寫入需要的套件名稱。
 
 本專案的 `requirements.txt`：
 ```
@@ -73,10 +80,6 @@ git add app.py requirements.txt .streamlit/config.toml .gitignore
 git commit -m "feat: Gemini Studio Text-to-Image app"
 git push -u origin master
 ```
-
-> ⚠️ **注意**：Streamlit 是基於 Python 的網頁框架，上傳的主程式應為 `.py` 檔（`app.py`），  
-> 而非前端 React 採用的 `.tsx` 檔。如果參考 React 版型，需要「**用 Python Streamlit 重寫**」，  
-> 而非直接上傳 `.tsx` 檔案。
 
 #### Step 3｜登入 Streamlit Community Cloud
 
@@ -115,12 +118,19 @@ L5B-HW3/
 ## 🔑 API 金鑰取得方式
 
 1. 前往 [aistudio.google.com](https://aistudio.google.com/)
-2. 點擊 **"Get API key"** → **"Create API key"**
+2. 點擊 **"Get API key"** → **"Create API key in new project"**（建立全新專案以確保有免費配額）
 3. 複製金鑰（格式為 `AIza...`）
 4. 在 Streamlit app 上方的「🔑 Set Key」輸入金鑰，或部署時設定為 Secret
 
-> 🔒 **安全提醒**：API 金鑰僅存在於瀏覽器 Session，不會儲存在伺服器端。  
-> `.streamlit/secrets.toml` 已被 `.gitignore` 排除，不會上傳至 GitHub。
+> 🔒 **安全提醒**：API 金鑰僅存在於瀏覽器 Session，不會儲存在伺服器端。
+
+### 常見錯誤排解
+
+| 錯誤訊息 | 原因 | 解決方式 |
+|---------|------|---------|
+| `429 Quota exceeded, limit: 0` | API Key 所在專案沒有免費配額 | 至 aistudio.google.com 重新建立 Key，選「**Create API key in new project**」 |
+| `401 / 403 Invalid API key` | 金鑰錯誤或已失效 | 重新複製正確的 Key 並貼上 |
+| `No image returned` | Prompt 觸發安全過濾 | 修改 Prompt，避免敏感詞彙 |
 
 ---
 
@@ -134,18 +144,11 @@ L5B-HW3/
 4. 透過 AI 協助完成 Git 操作與 GitHub 推送
 5. 部署至 Streamlit Community Cloud
 
-> **關鍵技術細節**：Prompt 需明確指定「用 Python Streamlit（`app.py`）重寫，  
-> **參考** React 版型（`.tsx`）的視覺佈局，而非直接上傳 `.tsx`」，  
-> 這樣 AI 才能生成正確的 Python 程式碼。
+> **關鍵技術修正 Prompt**：  
+> *"I want to create a Python Streamlit web app for Text-to-Image generation. We will use Google's Gemini model (`gemini-2.0-flash-preview-image-generation`) for image generation. Please help me build the app as a single `app.py` file, incorporating text inputs and image displays inspired by the layout of `text_to_image_app.tsx`, so that it can be deployed directly to streamlit.io. Please provide the Python code and `requirements.txt`."*
+>
+> 重點：明確指定「用 Python Streamlit（`app.py`）重寫，**參考** React 版型的視覺佈局，而非直接上傳 `.tsx`」，並指定免費的 Gemini 圖像生成模型，這樣 AI 才能生成正確可執行的程式碼。
 
 ---
 
-## 📸 App 截圖
-
-| 主介面 | 生成結果 |
-|--------|---------|
-| 深空暗色主題、Prompt 輸入、風格選擇 | Imagen 4 生成圖像、下載、歷史紀錄 |
-
----
-
-*Built with ❤️ using Antigravity IDE AI Agent + Google Gemini Imagen 4 + Streamlit*
+*Built with ❤️ using Antigravity IDE AI Agent + Google Gemini 2.0 Flash + Streamlit*

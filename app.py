@@ -21,7 +21,7 @@ from PIL import Image
 # PAGE CONFIG  ← must be the very first Streamlit call
 # ═══════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="Gemini Studio · Imagen 4 Ultra",
+    page_title="Gemini Studio · AI Image Generator",
     page_icon="🪐",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -344,8 +344,10 @@ INSPIRATIONS = [
     "Moonlit alpine lake perfectly reflecting a Milky Way arch, long-exposure photograph.",
 ]
 
-IMAGEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# Gemini 2.0 Flash Image Generation — 免費配額可用
+GEMINI_IMG_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent"
+# Gemini 1.5 Flash — 用於 AI Enhance Prompt（免費配額較多）
+GEMINI_URL  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -387,18 +389,33 @@ _init()
 # API HELPERS
 # ═══════════════════════════════════════════════════════════
 def _post(url: str, payload: dict, retries: int = 3) -> dict:
-    """POST with exponential-backoff retry on transient errors."""
+    """POST with exponential-backoff retry (skips retry on quota/auth errors)."""
     delay = 1.2
     for attempt in range(retries + 1):
         try:
             r = requests.post(url, json=payload, timeout=120)
-            if r.status_code == 429:          # rate-limit → back off
-                if attempt < retries:
-                    time.sleep(delay * 2)
-                    delay *= 2
-                    continue
+
+            if r.status_code == 429:
+                # 配額超限 — 不重試（重試沒有意義）
+                try:
+                    msg = r.json().get("error", {}).get("message", "Quota exceeded")
+                except Exception:
+                    msg = "Quota exceeded"
+                raise RuntimeError(f"QUOTA_EXCEEDED: {msg}")
+
+            if r.status_code in (401, 403):
+                # 金鑰無效 — 不重試
+                try:
+                    msg = r.json().get("error", {}).get("message", "Invalid API key")
+                except Exception:
+                    msg = "Invalid API key"
+                raise RuntimeError(f"AUTH_ERROR: {msg}")
+
             r.raise_for_status()
             return r.json()
+
+        except RuntimeError:
+            raise  # 直接往上拋，不重試
         except requests.exceptions.Timeout:
             if attempt < retries:
                 time.sleep(delay); delay *= 2; continue
@@ -408,10 +425,8 @@ def _post(url: str, payload: dict, retries: int = 3) -> dict:
                 time.sleep(delay); delay *= 2; continue
             raise RuntimeError("Network connection failed. Check your internet.")
         except requests.exceptions.HTTPError as e:
-            # Surface API error details
             try:
-                detail = r.json()
-                msg = detail.get("error", {}).get("message", str(e))
+                msg = r.json().get("error", {}).get("message", str(e))
             except Exception:
                 msg = str(e)
             raise RuntimeError(f"API error ({r.status_code}): {msg}")
@@ -419,22 +434,52 @@ def _post(url: str, payload: dict, retries: int = 3) -> dict:
 
 
 def call_imagen(prompt: str, api_key: str) -> str:
-    """Return base64-encoded PNG from Imagen 4."""
-    data = _post(f"{IMAGEN_URL}?key={api_key}", {
-        "instances":  {"prompt": prompt},
-        "parameters": {"sampleCount": 1},
-    })
+    """Return base64-encoded PNG from Imagen 4 (requires billing)."""
+    try:
+        data = _post(f"{IMAGEN_URL}?key={api_key}", {
+            "instances":  {"prompt": prompt},
+            "parameters": {"sampleCount": 1},
+        })
+    except RuntimeError as e:
+        msg = str(e)
+        if "QUOTA_EXCEEDED" in msg:
+            raise RuntimeError(
+                "QUOTA_EXCEEDED: Imagen 4 需要啟用 Google Cloud 帳單才能使用。\n"
+                "請前往 console.cloud.google.com 啟用帳單，或改用下方的免費生圖模式。"
+            )
+        raise
     b64 = data.get("predictions", [{}])[0].get("bytesBase64Encoded", "")
     if not b64:
         raise RuntimeError(
-            "Imagen returned no image data. "
-            "This may be due to a policy-blocked prompt or quota exhaustion."
+            "Imagen 4 returned no image. "
+            "This may be due to a policy-blocked prompt or missing billing."
         )
     return b64
 
 
+def call_gemini_image(prompt: str, api_key: str) -> str:
+    """Return base64-encoded PNG via Gemini 2.0 Flash image generation (free tier)."""
+    data = _post(f"{GEMINI_IMG_URL}?key={api_key}", {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
+    })
+    # Find the inline image part
+    parts = (
+        data.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [])
+    )
+    for part in parts:
+        if "inlineData" in part:
+            return part["inlineData"]["data"]   # base64 string
+    raise RuntimeError(
+        "Gemini image generation returned no image. "
+        "Try a different prompt or check your API quota."
+    )
+
+
 def call_enhance(prompt: str, api_key: str) -> str:
-    """Expand / translate prompt with Gemini Flash."""
+    """Expand / translate prompt with Gemini 1.5 Flash (higher free quota)."""
     system = (
         "You are an elite Prompt Engineer for state-of-the-art image generation models. "
         "Rewrite the user's idea (Chinese or English) into a rich, masterpiece-grade English "
@@ -442,11 +487,23 @@ def call_enhance(prompt: str, api_key: str) -> str:
         "color palette, and mood. Be concise yet evocative (under 220 words). "
         "Output ONLY the final prompt — no introductions, markdown, or quotes."
     )
-    data = _post(f"{GEMINI_URL}?key={api_key}", {
-        "contents": [{"parts": [{"text": f'Enhance this image prompt: "{prompt}"'}]}],
-        "systemInstruction": {"parts": [{"text": system}]},
-        "generationConfig": {"temperature": 0.85, "maxOutputTokens": 350},
-    })
+    try:
+        data = _post(f"{GEMINI_URL}?key={api_key}", {
+            "contents": [{"parts": [{"text": f'Enhance this image prompt: "{prompt}"'}]}],
+            "systemInstruction": {"parts": [{"text": system}]},
+            "generationConfig": {"temperature": 0.85, "maxOutputTokens": 350},
+        })
+    except RuntimeError as e:
+        msg = str(e)
+        if "QUOTA_EXCEEDED" in msg:
+            raise RuntimeError(
+                "QUOTA_EXCEEDED: Gemini 免費配額已用盡。\n"
+                "請至 aistudio.google.com/apikey 建立新的 API Key，"
+                "或直接輸入英文 Prompt 後點擊生圖（跳過 AI Enhance）。"
+            )
+        if "AUTH_ERROR" in msg:
+            raise RuntimeError("AUTH_ERROR: API Key 無效或已失效，請重新確認並更新 Key。")
+        raise
     text = (
         data.get("candidates", [{}])[0]
             .get("content", {})
@@ -476,7 +533,7 @@ st.markdown("""
     <div class="hero-title">Gemini Studio</div>
     <div class="hero-sub">TEXT · TO · IMAGE &nbsp;·&nbsp; POWERED BY GOOGLE AI</div>
   </div>
-  <div class="hero-badge">⚡ Imagen 4.0</div>
+  <div class="hero-badge">⚡ Gemini 2.0 Flash</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -656,7 +713,7 @@ if st.session_state.success_msg:
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="generate-cta">', unsafe_allow_html=True)
 gen_clicked = st.button(
-    "🚀  Generate with Gemini Imagen 4",
+    "🚀  Generate with Gemini 2.0 Flash",
     key="btn_generate",
     use_container_width=True,
 )
@@ -678,12 +735,12 @@ if gen_clicked:
         spinner_ph = st.empty()
         prog_ph    = st.empty()
 
-        with st.spinner("🪐 Transmitting tensors to Imagen 4 Ultra Engine…"):
+        with st.spinner("🪐 Gemini 2.0 Flash 正在生成圖像…"):
             prog_ph.progress(0, text="Connecting to Google AI…")
             time.sleep(0.4)
             prog_ph.progress(25, text="Sending prompt…")
             try:
-                b64 = call_imagen(final_prompt, st.session_state.api_key)
+                b64 = call_gemini_image(final_prompt, st.session_state.api_key)
                 prog_ph.progress(85, text="Decoding image…")
                 time.sleep(0.2)
                 prog_ph.progress(100, text="Done!")
@@ -852,6 +909,6 @@ st.markdown("""
   The app will auto-load your key — no manual entry needed for visitors!
 </div>
 <div style="text-align:center;margin-top:14px;font-size:0.63rem;color:#1e293b;padding-bottom:20px;">
-  Gemini Studio · Built with Streamlit &amp; Google Imagen 4 · 2025
+  Gemini Studio · Built with Streamlit &amp; Gemini 2.0 Flash Image Generation · 2025
 </div>
 """, unsafe_allow_html=True)
