@@ -203,6 +203,20 @@ L5B-HW3/
 
 > 🔒 **安全提醒**：API 金鑰僅存在於瀏覽器 Session，不會儲存在伺服器端。
 
+---
+
+### 📊 API 呼叫速率限制 (以 Tier 1 付費層級為例)
+
+下表為本專案所呼叫之核心模型的 Rate Limits 速率上限：
+
+| 模型與識別碼 (Model ID) | 類別 | 每分鐘請求數 (RPM) | 每天最大請求數 (RPD) | 每分鐘 Token 數 (TPM) |
+|---|---|---|---|---|
+| **Gemini 3.5 Flash** (`gemini-3.5-flash`) | Prompt 擴寫與優化 | 1,000 RPM | 10,000 RPD | 2,000,000 TPM |
+| **Gemini 3.1 Flash Image** (`gemini-3.1-flash-image`) | AI 影像生成 (Nano Banana 2) | 100 RPM | 1,000 RPD | 200,000 TPM |
+| **Imagen 4 Generate** | 舊版影像生成引擎 | 10 RPM | 70 RPD | - |
+
+---
+
 ### 常見錯誤排解
 
 | `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. Gemini API 影像生成不設免費額度。請至 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結並啟用帳單與儲值。<br>2. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
