@@ -192,18 +192,6 @@ div[data-testid="stButton"].generate-cta > div > button,
     transform: translateY(-2px) !important;
 }
 
-/* Enhance button */
-.enhance-cta button {
-    background: linear-gradient(135deg, rgba(79,70,229,0.22), rgba(124,58,237,0.22)) !important;
-    color: #a5b4fc !important;
-    border: 1px solid rgba(99,102,241,0.35) !important;
-    width: 100% !important; padding: 10px 0 !important;
-}
-.enhance-cta button:hover {
-    background: linear-gradient(135deg, rgba(79,70,229,0.35), rgba(124,58,237,0.35)) !important;
-    border-color: rgba(99,102,241,0.6) !important;
-}
-
 /* Download button */
 .stDownloadButton > button {
     background: linear-gradient(135deg, #4f46e5, #6d28d9) !important;
@@ -346,8 +334,6 @@ INSPIRATIONS = [
 
 # Gemini 3.1 Flash Image — 免費配額可用
 GEMINI_IMG_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent"
-# Gemini 3.5 Flash — 用於 AI Enhance Prompt
-GEMINI_URL  = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -491,68 +477,6 @@ def call_gemini_image(prompt: str, aspect: str, api_key: str, model_name: str = 
         f"{model_name} returned no image. "
         "Try a different prompt or check your API quota."
     )
-
-
-def call_enhance(prompt: str, api_key: str) -> str:
-    """Expand / translate prompt with Gemini text models (with auto-fallback to alternative versions)."""
-    system = (
-        "You are an elite Prompt Engineer for state-of-the-art image generation models. "
-        "Rewrite the user's idea (Chinese or English) into a rich, masterpiece-grade English "
-        "prompt. Include: vivid lighting description, texture details, camera perspective, "
-        "color palette, and mood. Be concise yet evocative (under 220 words). "
-        "Output ONLY the final prompt — no introductions, markdown, or quotes."
-    )
-    
-    # Try models in order: gemini-3.5-flash -> gemini-2.5-flash -> gemini-2.5-pro -> gemini-2.0-flash -> gemini-1.5-flash
-    models = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]
-    attempts = []
-    significant_err_msg = ""
-    
-    for idx, model_name in enumerate(models):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        try:
-            data = _post(url, {
-                "contents": [{"parts": [{"text": f'Enhance this image prompt: "{prompt}"'}]}],
-                "systemInstruction": {"parts": [{"text": system}]},
-                "generationConfig": {"temperature": 0.85, "maxOutputTokens": 350},
-            })
-            text = (
-                data.get("candidates", [{}])[0]
-                    .get("content", {})
-                    .get("parts", [{}])[0]
-                    .get("text", "")
-                    .strip()
-            )
-            if text:
-                return text
-            else:
-                attempts.append(f"• {model_name}: returned empty response")
-        except RuntimeError as e:
-            msg = str(e)
-            attempts.append(f"• {model_name}: {msg}")
-            # Authentication errors should halt immediately (no model fallback will fix invalid key)
-            if "AUTH_ERROR" in msg or "401" in msg or "403" in msg:
-                raise RuntimeError(f"AUTH_ERROR: API Key 無效或已失效，請重新確認並更新 Key。\n詳細錯誤：{msg}")
-            
-            # 429 Quota errors are the most significant errors; track them
-            if "QUOTA_EXCEEDED" in msg or "429" in msg:
-                significant_err_msg = msg
-            continue
-        except Exception as e:
-            msg = str(e)
-            attempts.append(f"• {model_name}: {msg}")
-            continue
-            
-    # If all models failed, raise a detailed error message showing all attempts
-    details = "\n".join(attempts)
-    
-    err_prefix = ""
-    if significant_err_msg:
-        err_prefix = "⚠️ Gemini API 速率限制或配額已超限 (429)。請稍後再試，或直接輸入英文 Prompt 進行生圖（跳過 AI Enhance）。\n\n"
-    elif any("404" in a for a in attempts):
-        err_prefix = "⚠️ 所有 Gemini 文本模型呼叫失敗，請確認您的 Google AI Studio API Key 或專案權限狀態。\n\n"
-    
-    raise RuntimeError(f"{err_prefix}【詳細錯誤紀錄】\n{details}")
 
 
 def b64_to_pil(b64: str) -> Image.Image:
@@ -746,7 +670,7 @@ st.markdown("""
     <div class="hero-title">Gemini Studio</div>
     <div class="hero-sub">TEXT · TO · IMAGE &nbsp;·&nbsp; POWERED BY GOOGLE AI</div>
   </div>
-  <div class="hero-badge">⚡ Gemini 3.1 & 3.5</div>
+  <div class="hero-badge">⚡ Gemini 3.1</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -837,14 +761,12 @@ if st.session_state.show_key_panel or not has_key:
                         model_displays = [m.get("displayName", "") for m in models]
                         
                         has_img_model = any("gemini-3.1-flash-image" in name for name in model_names)
-                        has_txt_model = any("gemini-3.5-flash" in name for name in model_names)
                         
                         st.session_state.diag_results = {
                             "success": True,
                             "model_names": model_names,
                             "model_displays": model_displays,
-                            "has_img_model": has_img_model,
-                            "has_txt_model": has_txt_model
+                            "has_img_model": has_img_model
                         }
                         st.session_state.success_msg = "✅ API Key 連線測試成功！"
                     else:
@@ -869,7 +791,6 @@ if st.session_state.show_key_panel or not has_key:
             | 功能 | 模型名稱 (Model ID) | 狀態 |
             |---|---|---|
             | 🖼️  **生圖模型** | `models/gemini-3.1-flash-image` | {'✅ 已授權可用' if diag["has_img_model"] else '❌ 未授權 (帳單限制)'} |
-            | 🔮  **Prompt優化** | `models/gemini-3.5-flash` | {'✅ 已授權可用' if diag["has_txt_model"] else '❌ 未授權'} |
             """)
             
             if not diag["has_img_model"]:
@@ -929,8 +850,7 @@ prompt_val = st.text_area(
     value=st.session_state.prompt,
     placeholder=(
         "Describe your vision in English or Chinese…\n"
-        "e.g. 「一隻機械狐狸在霓虹城市中奔跑」or 'A crystal dragon above a stormy sea'\n\n"
-        "💡 Tip: Use '🔮 AI Enhance' to auto-translate & expand your idea!"
+        "e.g. 「一隻機械狐狸在霓虹城市中奔跑」or 'A crystal dragon above a stormy sea'"
     ),
     height=140,
     key="prompt_textarea",
@@ -945,32 +865,6 @@ st.markdown(
     f'<div class="char-count" style="color:{c_color};">{clen} / 500 chars</div>',
     unsafe_allow_html=True,
 )
-
-# ── AI Enhance button ──
-st.markdown('<div class="enhance-cta">', unsafe_allow_html=True)
-if st.button(
-    "🔮  AI Enhance Prompt  —  translate Chinese & expand details via Gemini",
-    key="btn_enhance",
-    use_container_width=True,
-):
-    if not st.session_state.prompt.strip():
-        st.session_state.error_msg = "Please enter some text or an idea before enhancing."
-        st.rerun()
-    elif not st.session_state.api_key.strip():
-        st.session_state.error_msg = "API key is missing. Expand the key panel above."
-        st.rerun()
-    else:
-        with st.spinner("🔮 Gemini is crafting your perfect prompt…"):
-            try:
-                enhanced = call_enhance(st.session_state.prompt, st.session_state.api_key)
-                st.session_state.prompt   = enhanced
-                st.session_state["prompt_textarea"] = enhanced
-                st.session_state.error_msg = ""
-                st.session_state.success_msg = "✨ Prompt enhanced by Gemini AI!"
-            except Exception as ex:
-                st.session_state.error_msg = f"Enhancement failed: {ex}"
-        st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 

@@ -97,7 +97,6 @@
 
 | 功能 | 說明 |
 |------|------|
-| 🔮 AI Enhance Prompt | 使用 Gemini 3.5 Flash 將中文或簡單描述自動翻譯、擴寫為高品質英文 Prompt |
 | 🎨 Art Style 風格選擇 | 無風格 / 宇宙科幻 / 賽博龐克 / 奇幻史詩 / 寫實攝影 / 動漫風格 |
 | 📐 Aspect Ratio 尺寸 | 1:1 正方形 / 16:9 橫幅 / 9:16 直幅 |
 | 💡 Inspire Me | 隨機生成靈感提示詞 |
@@ -111,7 +110,6 @@
 
 - **框架**：[Streamlit](https://streamlit.io/) (Python)
 - **生圖模型**：`gemini-3.1-flash-image`（**付費生圖**） / Microsoft Designer (Bing)（免金鑰免費備份）
-- **Prompt 優化**：`gemini-3.5-flash`（免費配額較大）
 - **API**：[Google AI Studio](https://aistudio.google.com/) Gemini API
 - **部署平台**：Streamlit Community Cloud
 
@@ -211,7 +209,6 @@ L5B-HW3/
 
 | 模型與識別碼 (Model ID) | 類別 | 每分鐘請求數 (RPM) | 每天最大請求數 (RPD) | 每分鐘 Token 數 (TPM) |
 |---|---|---|---|---|
-| **Gemini 3.5 Flash** (`gemini-3.5-flash`) | Prompt 擴寫與優化 | 1,000 RPM | 10,000 RPD | 2,000,000 TPM |
 | **Gemini 3.1 Flash Image** (`gemini-3.1-flash-image`) | AI 影像生成 (Nano Banana 2) | 100 RPM | 1,000 RPD | 200,000 TPM |
 | **Imagen 4 Generate** | 舊版影像生成引擎 | 10 RPM | 70 RPD | - |
 
@@ -243,4 +240,4 @@ L5B-HW3/
 
 ---
 
-*Built with ❤️ using Antigravity IDE AI Agent + Google Gemini 3.1 & 3.5 + Streamlit*
+*Built with ❤️ using Antigravity IDE AI Agent + Google Gemini 3.1 + Streamlit*
