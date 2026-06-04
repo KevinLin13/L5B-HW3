@@ -459,15 +459,16 @@ def call_imagen(prompt: str, api_key: str) -> str:
     return b64
 
 
-def call_gemini_image(prompt: str, aspect: str, api_key: str) -> str:
-    """Return base64-encoded PNG via Gemini 3.1 Flash Image generation (free tier)."""
+def call_gemini_image(prompt: str, aspect: str, api_key: str, model_name: str = "gemini-3.1-flash-image") -> str:
+    """Return base64-encoded PNG via Gemini Flash Image generation (free or paid tier)."""
     aspect_map = {
         "1:1 Square": "1:1",
         "16:9 Widescreen": "16:9",
         "9:16 Portrait": "9:16"
     }
     api_aspect = aspect_map.get(aspect, "1:1")
-    data = _post(f"{GEMINI_IMG_URL}?key={api_key}", {
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    data = _post(url, {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "responseModalities": ["IMAGE", "TEXT"],
@@ -486,7 +487,7 @@ def call_gemini_image(prompt: str, aspect: str, api_key: str) -> str:
         if "inlineData" in part:
             return part["inlineData"]["data"]   # base64 string
     raise RuntimeError(
-        "Gemini image generation returned no image. "
+        f"{model_name} returned no image. "
         "Try a different prompt or check your API quota."
     )
 
@@ -553,7 +554,7 @@ def call_list_models(api_key: str) -> dict:
 
 
 def call_free_image(prompt: str, aspect: str, progress_ph=None) -> str:
-    """Try Pollinations AI first; if it returns 402 or fails, fallback to AI Horde."""
+    """Try Pollinations AI first; if it returns 402 or fails, fallback to AI Horde with robust retry logic."""
     w, h = 1024, 1024
     if aspect == "16:9 Widescreen":
         w, h = 1024, 576
@@ -602,34 +603,110 @@ def call_free_image(prompt: str, aspect: str, progress_ph=None) -> str:
         }
         
         try:
-            r = requests.post(horde_url, json=payload, headers=headers, timeout=30)
-            r.raise_for_status()
+            # POST request retry loop for 429 Too Many Requests
+            r = None
+            for post_attempt in range(5):
+                try:
+                    r = requests.post(horde_url, json=payload, headers=headers, timeout=30)
+                    if r.status_code == 429:
+                        if progress_ph:
+                            progress_ph.progress(42, text="⏳ AI Horde busy (429). Retrying in 10s...")
+                        time.sleep(10)
+                        continue
+                    r.raise_for_status()
+                    break
+                except Exception as post_err:
+                    if post_attempt == 4:
+                        raise post_err
+                    time.sleep(5)
+            else:
+                raise RuntimeError("AI Horde busy (429) after multiple queue attempts.")
+
             request_id = r.json().get("id")
             if not request_id:
                 raise RuntimeError("AI Horde failed to queue request.")
 
+            check_url = f"https://stablehorde.net/api/v2/generate/check/{request_id}"
             status_url = f"https://stablehorde.net/api/v2/generate/status/{request_id}"
-            # Poll for up to 120 seconds (12 attempts * 10 seconds) to avoid 429 Too Many Requests
-            for attempt in range(12):
+            
+            # Poll check endpoint for up to 300 seconds (30 attempts * 10 seconds)
+            # This is significantly lighter than polling status directly and avoids 429 status blocks.
+            is_finished = False
+            for attempt in range(30):
                 time.sleep(10)
-                res = requests.get(status_url, timeout=20)
-                res.raise_for_status()
-                data = res.json()
-                if data.get("done"):
-                    img_url = data["generations"][0]["img"]
-                    img_res = requests.get(img_url, timeout=30)
-                    img_res.raise_for_status()
-                    b64 = base64.b64encode(img_res.content).decode("utf-8")
-                    return b64
+                try:
+                    res = requests.get(check_url, timeout=20)
+                    if res.status_code == 429:
+                        if progress_ph:
+                            progress_ph.progress(
+                                min(40 + attempt * 2, 95), 
+                                text="⏳ Rate limited by AI Horde (429). Waiting 15s..."
+                            )
+                        time.sleep(15)
+                        continue
+                    res.raise_for_status()
+                    data = res.json()
+                except Exception as check_err:
+                    # Let's not fail on transient check errors, wait and retry
+                    if progress_ph:
+                        progress_ph.progress(
+                            min(40 + attempt * 2, 95), 
+                            text=f"⏳ Connection error checking queue. Retrying... ({str(check_err)[:25]})"
+                        )
+                    time.sleep(5)
+                    continue
+
+                if data.get("finished") or data.get("done"):
+                    is_finished = True
+                    break
                 else:
                     wait_time = data.get("wait_time", 0)
                     pos = data.get("queue_position", 0)
                     if progress_ph:
                         progress_ph.progress(
-                            min(40 + attempt * 5, 95), 
+                            min(40 + attempt * 2, 95), 
                             text=f"⏳ AI Horde Queue (Pos: {pos}, Est: {wait_time}s)..."
                         )
-            raise RuntimeError("AI Horde generation timed out.")
+            
+            if not is_finished:
+                raise RuntimeError("AI Horde generation timed out after 5 minutes.")
+
+            # Once check confirms finished, retrieve the actual results via status URL
+            status_data = None
+            for status_attempt in range(6):
+                try:
+                    res = requests.get(status_url, timeout=20)
+                    if res.status_code == 429:
+                        time.sleep(12)
+                        continue
+                    res.raise_for_status()
+                    status_data = res.json()
+                    break
+                except Exception as status_err:
+                    if status_attempt == 5:
+                        raise RuntimeError(f"Failed to retrieve image status: {status_err}")
+                    time.sleep(5)
+
+            if not status_data or "generations" not in status_data or not status_data["generations"]:
+                raise RuntimeError("AI Horde status returned empty generations data.")
+
+            img_url = status_data["generations"][0]["img"]
+            
+            # Download the image content
+            img_content = None
+            for img_attempt in range(5):
+                try:
+                    img_res = requests.get(img_url, timeout=30)
+                    img_res.raise_for_status()
+                    img_content = img_res.content
+                    break
+                except Exception as img_err:
+                    if img_attempt == 4:
+                        raise RuntimeError(f"Failed to download image bytes: {img_err}")
+                    time.sleep(5)
+
+            b64 = base64.b64encode(img_content).decode("utf-8")
+            return b64
         except Exception as horde_err:
             raise RuntimeError(f"All free generation paths failed. Pollinations error: {e}. AI Horde error: {horde_err}")
 
@@ -734,14 +811,16 @@ if st.session_state.show_key_panel or not has_key:
                         model_names = [m.get("name", "") for m in models]
                         model_displays = [m.get("displayName", "") for m in models]
                         
-                        has_img_model = any("gemini-3.1-flash-image" in name for name in model_names)
+                        has_img_31 = any("gemini-3.1-flash-image" in name for name in model_names)
+                        has_img_25 = any("gemini-2.5-flash-image" in name for name in model_names)
                         has_txt_model = any("gemini-3.5-flash" in name for name in model_names)
                         
                         st.session_state.diag_results = {
                             "success": True,
                             "model_names": model_names,
                             "model_displays": model_displays,
-                            "has_img_model": has_img_model,
+                            "has_img_31": has_img_31,
+                            "has_img_25": has_img_25,
                             "has_txt_model": has_txt_model
                         }
                         st.session_state.success_msg = "✅ API Key 連線測試成功！"
@@ -766,18 +845,24 @@ if st.session_state.show_key_panel or not has_key:
             st.markdown(f"""
             | 功能 | 模型名稱 (Model ID) | 狀態 |
             |---|---|---|
-            | 🖼️  **生圖模型** | `models/gemini-3.1-flash-image` | {'✅ 已授權可用' if diag["has_img_model"] else '❌ 未授權 (帳單限制)'} |
+            | 🖼️  **免費生圖模型** | `models/gemini-2.5-flash-image` | {'✅ 已授權可用' if diag.get("has_img_25") else '❌ 未授權'} |
+            | 🖼️  **進階生圖模型** | `models/gemini-3.1-flash-image` | {'✅ 已授權可用' if diag.get("has_img_31") else '❌ 未授權 (帳單限制)'} |
             | 🔮  **Prompt優化** | `models/gemini-3.5-flash` | {'✅ 已授權可用' if diag["has_txt_model"] else '❌ 未授權'} |
             """)
             
-            if not diag["has_img_model"]:
+            if not diag.get("has_img_25") and not diag.get("has_img_31"):
                 st.markdown("""
-                > ⚠️  **診斷分析**：您的 API 金鑰**尚未取得** `gemini-3.1-flash-image` 權限。  
-                > 請至 [console.cloud.google.com/billing](https://console.cloud.google.com/billing) 確認您的 Google Cloud 專案已綁定信用卡與帳單帳戶，或是前往 AI Studio 重新建立一個新專案的 API Key。
+                > ⚠️  **診斷分析**：您的 API 金鑰**尚未取得**任何 Gemini 生圖模型權限。  
+                > 請至 [console.cloud.google.com/billing](https://console.cloud.google.com/billing) 確認您的 Google Cloud 專案是否已綁定帳單與信用卡，或是前往 AI Studio 重新建立一個新專案的 API Key。
+                """)
+            elif diag.get("has_img_25") and not diag.get("has_img_31"):
+                st.markdown("""
+                > 👍  **診斷分析**：金鑰已具備 `gemini-2.5-flash-image` 免費生圖權限！可以點擊下方「Gemini 2.5 Flash Image」進行免綁信用卡生圖。  
+                > 提示：進階的 `gemini-3.1-flash-image` 則需要為該專案綁定 Google Cloud 帳單與信用卡才能呼叫。
                 """)
             else:
                 st.markdown("""
-                > 👍  **診斷分析**：金鑰已具有 `gemini-3.1-flash-image` 的呼叫權限！  
+                > 👍  **診斷分析**：金鑰已具有進階生圖模型 `gemini-3.1-flash-image` 的呼叫權限！  
                 > 如果生圖仍失敗，請確認該 Google Cloud 專案是否連結到啟用的帳單帳戶（即使是免費額度，部分模型亦需要 billing link 作為身份驗證）。
                 """)
             
@@ -797,14 +882,23 @@ model_pick = st.radio(
     "image_model",
     options=[
         "🎨 Microsoft Designer (Bing) - 100% Free & Keyless",
+        "🪐 Gemini 2.5 Flash Image (Free Tier / No Billing Required)",
         "🪐 Gemini 3.1 Flash Image (Paid Tier / Billing Required)"
     ],
-    index=0 if st.session_state.image_model == "Microsoft Designer (Bing)" else 1,
+    index=(
+        0 if st.session_state.image_model == "Microsoft Designer (Bing)"
+        else (1 if st.session_state.image_model == "gemini-2.5-flash-image" else 2)
+    ),
     horizontal=True,
     key="radio_model",
     label_visibility="collapsed"
 )
-st.session_state.image_model = "Microsoft Designer (Bing)" if "Microsoft" in model_pick else "🪐 Gemini 3.1 Flash Image (Paid)"
+if "Microsoft" in model_pick:
+    st.session_state.image_model = "Microsoft Designer (Bing)"
+elif "2.5" in model_pick:
+    st.session_state.image_model = "gemini-2.5-flash-image"
+else:
+    st.session_state.image_model = "gemini-3.1-flash-image"
 st.markdown("<br>", unsafe_allow_html=True)
 
 
@@ -915,7 +1009,12 @@ if st.session_state.success_msg:
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="generate-cta">', unsafe_allow_html=True)
 is_free_model = (st.session_state.image_model == "Microsoft Designer (Bing)")
-btn_label = "🚀  Generate with Microsoft Designer (Bing) (Free)" if is_free_model else "🚀  Generate with Gemini 3.1 Flash Image"
+if is_free_model:
+    btn_label = "🚀  Generate with Microsoft Designer (Bing) (Free)"
+elif st.session_state.image_model == "gemini-2.5-flash-image":
+    btn_label = "🚀  Generate with Gemini 2.5 Flash Image (Free Tier)"
+else:
+    btn_label = "🚀  Generate with Gemini 3.1 Flash Image (Paid Tier)"
 gen_clicked = st.button(
     btn_label,
     key="btn_generate",
@@ -939,7 +1038,13 @@ if gen_clicked:
         spinner_ph = st.empty()
         prog_ph    = st.empty()
 
-        spinner_msg = "🪐 Microsoft Designer (Bing) 正在生成圖像…" if is_free_model else "🪐 Gemini 3.1 Flash Image 正在生成圖像…"
+        if is_free_model:
+            spinner_msg = "🪐 Microsoft Designer (Bing) 正在生成圖像…"
+        elif st.session_state.image_model == "gemini-2.5-flash-image":
+            spinner_msg = "🪐 Gemini 2.5 Flash Image 正在生成圖像…"
+        else:
+            spinner_msg = "🪐 Gemini 3.1 Flash Image 正在生成圖像…"
+
         with st.spinner(spinner_msg):
             prog_ph.progress(0, text="Connecting to AI Server…")
             time.sleep(0.4)
@@ -948,7 +1053,7 @@ if gen_clicked:
                 if is_free_model:
                     b64 = call_free_image(final_prompt, st.session_state.aspect, prog_ph)
                 else:
-                    b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
+                    b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key, st.session_state.image_model)
                 prog_ph.progress(85, text="Decoding image…")
                 time.sleep(0.2)
                 prog_ph.progress(100, text="Done!")

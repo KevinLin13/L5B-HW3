@@ -16,14 +16,12 @@
 > 
 > 為了不讓你多花冤枉錢，請以下面最新的官方邏輯為準：
 > 
-> ### 1. 修正：Gemini API 只要一綁定，就「沒有」免費圖了
+> ### 1. 修正與更新：Gemini API 影像生成的新免費額度
 > 
-> 我之前提到的「每天免費生 25 張圖，綁卡驗證解鎖」其實是**混淆了 ChatGPT/Claude 那類網頁版訂閱制、或是 Google Vertex AI 的某些企業試用機制**。
+> 在 **Google AI Studio (Gemini API)** 的官方規則中：
 > 
-> 在 **Google AI Studio (Gemini API)** 的官方定價規則中：
-> 
-> * **純文字/多模態輸入模型**（如 `gemini-2.0-flash` 的純文字或圖片讀取）：確實有提供**完全免費的額度（Free Tier）**。
-> * **生圖或多媒體生成模型**（例如 Imagen 系列模型）：官方定價中通常顯示 **Free Tier「無法使用（Not Available）」**。這意味著生圖這類高成本的功能，**只要你沒儲值，在免費層級下是完全沒辦法呼叫的**。
+> * **免費影像模型**（如 `gemini-2.5-flash-image`）：現在 Google AI Studio 提供了 **`gemini-2.5-flash-image` 免費生圖模型**！只要您的 API 專案在「免費層級（Free Tier）」，**無須綁定信用卡或儲值，即可每天免費生成最多 500 張圖片**。
+> * **付費影像模型**（如 `gemini-3.1-flash-image`）：在免費層級下其呼叫配額為 `0` (無法使用/Quota Exceeded)，必須在 Google AI Studio 中將專案升級為付費方案（Paid Tier / 連結帳單並儲值）才能呼叫。
 > 
 > ### 2. 你現在的狀態是什麼？
 > 
@@ -92,7 +90,7 @@
 
 ## 📖 專案簡介
 
-本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini 3.1 Flash Image** 模型進行 AI 繪圖（免費方案可用）。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
+本專案是一個基於 **Python + Streamlit** 建立的 Text-to-Image 生圖網頁應用程式，串接 **Google Gemini 2.5/3.1 Flash Image** 模型進行 AI 繪圖。使用者可透過自然語言描述（中文或英文），由 AI 自動生成對應的高品質圖像。
 
 ### ✨ 主要功能
 
@@ -102,7 +100,7 @@
 | 🎨 Art Style 風格選擇 | 無風格 / 宇宙科幻 / 賽博龐克 / 奇幻史詩 / 寫實攝影 / 動漫風格 |
 | 📐 Aspect Ratio 尺寸 | 1:1 正方形 / 16:9 橫幅 / 9:16 直幅 |
 | 💡 Inspire Me | 隨機生成靈感提示詞 |
-| 🚀 Gemini 3.1 Flash 生圖 | 呼叫 Gemini 3.1 Flash Image 引擎（**免費配額可用**） |
+| 🚀 Gemini 生圖引擎 | 支援 `gemini-2.5-flash-image`（**免信用卡、每日免費 500 次**）與 `gemini-3.1-flash-image`（進階付費） |
 | ⬇️ 下載圖片 | 一鍵下載 PNG 格式圖像 |
 | 🌌 歷史紀錄 | 保留最近 20 筆生成紀錄，可一鍵重載或個別下載 |
 
@@ -111,12 +109,12 @@
 ## 🛠️ 技術棧
 
 - **框架**：[Streamlit](https://streamlit.io/) (Python)
-- **生圖模型**：`gemini-3.1-flash-image`（**Google 免費配額可用**）
+- **生圖模型**：`gemini-2.5-flash-image`（**免費生圖**） / `gemini-3.1-flash-image`（付費進階） / Microsoft Designer (Bing)（免金鑰備份）
 - **Prompt 優化**：`gemini-3.5-flash`（免費配額較大）
 - **API**：[Google AI Studio](https://aistudio.google.com/) Gemini API
 - **部署平台**：Streamlit Community Cloud
 
-> ⚠️ **注意**：本專案已改用 `gemini-3.1-flash-image`，**使用 Google AI Studio 免費 API Key 即可生圖**。
+> ⚠️ **注意**：本專案已支援 `gemini-2.5-flash-image`（**免費額度**）與 `gemini-3.1-flash-image`（付費生圖）。
 
 ---
 
@@ -206,7 +204,7 @@ L5B-HW3/
 
 ### 常見錯誤排解
 
-| `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. 登入 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結以開啟付費方案。<br>2. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
+| `429 Quota exceeded, limit: 0` (生圖模型) | API 專案未啟用 Google Cloud 帳單 | 1. 這是使用 `gemini-3.1-flash-image` 且未啟用帳單的限制，請切換回 `gemini-2.5-flash-image` 使用免費生圖額度。<br>2. 若要使用 3.1，請至 [Google Cloud Console Billing](https://console.cloud.google.com/billing) 將此專案與信用卡連結以開啟付費方案。<br>3. 亦可在 App 設定金鑰處點擊 **🔍 Run API Diagnostics** 進行權限診斷。 |
 | `429 Quota exceeded, limit: 0` (對話模型) | API Key 所在專案沒有免費配額 | 至 aistudio.google.com 重新建立 Key，選「**Create API key in new project**」以重置免費額度。 |
 | `401 / 403 Invalid API key` | 金鑰錯誤或已失效 | 重新複製正確的 Key 並貼上 |
 | `No image returned` | Prompt 觸發安全過濾 | 修改 Prompt，避免敏感詞彙 |
