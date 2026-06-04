@@ -552,8 +552,8 @@ def call_list_models(api_key: str) -> dict:
         raise RuntimeError(msg)
 
 
-def call_pollinations_image(prompt: str, aspect: str) -> str:
-    """Return base64-encoded PNG via Pollinations.ai (free, keyless Flux model)."""
+def call_free_image(prompt: str, aspect: str, progress_ph=None) -> str:
+    """Try Pollinations AI first; if it returns 402 or fails, fallback to AI Horde."""
     w, h = 1024, 1024
     if aspect == "16:9 Widescreen":
         w, h = 1024, 576
@@ -562,15 +562,76 @@ def call_pollinations_image(prompt: str, aspect: str) -> str:
         
     encoded_prompt = requests.utils.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={w}&height={h}&nologo=true&private=true&model=flux"
+    
     try:
-        r = requests.get(url, timeout=90)
+        r = requests.get(url, timeout=30)
+        # Check if 402 Payment Required (Queue full for IP on shared Cloud hosting)
+        if r.status_code == 402:
+            raise RuntimeError("Pollinations rate limit / Queue full")
         r.raise_for_status()
         b64 = base64.b64encode(r.content).decode("utf-8")
         if not b64:
-            raise RuntimeError("Received empty response from Pollinations.")
+            raise RuntimeError("Empty response")
         return b64
     except Exception as e:
-        raise RuntimeError(f"Pollinations generation failed: {e}")
+        # Fallback to AI Horde
+        if progress_ph:
+            progress_ph.progress(40, text="⚠️ Free queue busy. Switching to AI Horde backup...")
+        
+        # Map aspect ratio to standard stable diffusion dimensions (max 512/768 for anonymous users)
+        w_horde, h_horde = 512, 512
+        if aspect == "16:9 Widescreen":
+            w_horde, h_horde = 768, 448
+        elif aspect == "9:16 Portrait":
+            w_horde, h_horde = 448, 768
+
+        horde_url = "https://stablehorde.net/api/v2/generate/async"
+        payload = {
+            "prompt": prompt,
+            "params": {
+                "width": w_horde,
+                "height": h_horde,
+                "steps": 20,
+                "n": 1
+            },
+            "nsfw": False
+        }
+        headers = {
+            "apikey": "0000000000",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            r = requests.post(horde_url, json=payload, headers=headers, timeout=30)
+            r.raise_for_status()
+            request_id = r.json().get("id")
+            if not request_id:
+                raise RuntimeError("AI Horde failed to queue request.")
+
+            status_url = f"https://stablehorde.net/api/v2/generate/status/{request_id}"
+            # Poll for up to 90 seconds (30 attempts * 3 seconds)
+            for attempt in range(30):
+                time.sleep(3)
+                res = requests.get(status_url, timeout=20)
+                res.raise_for_status()
+                data = res.json()
+                if data.get("done"):
+                    img_url = data["generations"][0]["img"]
+                    img_res = requests.get(img_url, timeout=30)
+                    img_res.raise_for_status()
+                    b64 = base64.b64encode(img_res.content).decode("utf-8")
+                    return b64
+                else:
+                    wait_time = data.get("wait_time", 0)
+                    pos = data.get("queue_position", 0)
+                    if progress_ph:
+                        progress_ph.progress(
+                            min(40 + attempt * 2, 95), 
+                            text=f"⏳ AI Horde Queue (Pos: {pos}, Est: {wait_time}s)..."
+                        )
+            raise RuntimeError("AI Horde generation timed out.")
+        except Exception as horde_err:
+            raise RuntimeError(f"All free generation paths failed. Pollinations error: {e}. AI Horde error: {horde_err}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -885,7 +946,7 @@ if gen_clicked:
             prog_ph.progress(25, text="Sending prompt…")
             try:
                 if is_free_model:
-                    b64 = call_pollinations_image(final_prompt, st.session_state.aspect)
+                    b64 = call_free_image(final_prompt, st.session_state.aspect, prog_ph)
                 else:
                     b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
                 prog_ph.progress(85, text="Decoding image…")
