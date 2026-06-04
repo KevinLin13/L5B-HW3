@@ -358,6 +358,7 @@ def _init():
         "api_key":        "",
         "key_from_secret": False,   # True if auto-loaded from st.secrets
         "prompt":         "",
+        "prompt_textarea": "",
         "style":          "🎨 No Style",
         "aspect":         "1:1 Square",
         "history":        [],       # list[dict]
@@ -893,7 +894,9 @@ st.markdown('<div class="section-title">✏️ &nbsp;Creative Prompt</div>', uns
 c_label, c_inspire = st.columns([4, 1])
 with c_inspire:
     if st.button("💡 Inspire", key="btn_inspire", use_container_width=True):
-        st.session_state.prompt = random.choice(INSPIRATIONS)
+        new_prompt = random.choice(INSPIRATIONS)
+        st.session_state.prompt = new_prompt
+        st.session_state["prompt_textarea"] = new_prompt
         st.session_state.error_msg = ""
         st.rerun()
 
@@ -937,6 +940,7 @@ if st.button(
             try:
                 enhanced = call_enhance(st.session_state.prompt, st.session_state.api_key)
                 st.session_state.prompt   = enhanced
+                st.session_state["prompt_textarea"] = enhanced
                 st.session_state.error_msg = ""
                 st.session_state.success_msg = "✨ Prompt enhanced by Gemini AI!"
             except Exception as ex:
