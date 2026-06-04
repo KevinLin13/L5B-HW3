@@ -368,6 +368,7 @@ def _init():
         "show_key_panel": False,
         "generating":     False,
         "diag_results":   None,
+        "image_model":    "Microsoft Designer (Bing)",
     }
     for k, v in defs.items():
         if k not in st.session_state:
@@ -551,6 +552,27 @@ def call_list_models(api_key: str) -> dict:
         raise RuntimeError(msg)
 
 
+def call_pollinations_image(prompt: str, aspect: str) -> str:
+    """Return base64-encoded PNG via Pollinations.ai (free, keyless Flux model)."""
+    w, h = 1024, 1024
+    if aspect == "16:9 Widescreen":
+        w, h = 1024, 576
+    elif aspect == "9:16 Portrait":
+        w, h = 576, 1024
+        
+    encoded_prompt = requests.utils.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={w}&height={h}&nologo=true&private=true&model=flux"
+    try:
+        r = requests.get(url, timeout=90)
+        r.raise_for_status()
+        b64 = base64.b64encode(r.content).decode("utf-8")
+        if not b64:
+            raise RuntimeError("Received empty response from Pollinations.")
+        return b64
+    except Exception as e:
+        raise RuntimeError(f"Pollinations generation failed: {e}")
+
+
 # ═══════════════════════════════════════════════════════════
 # ── HERO HEADER ────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════
@@ -706,6 +728,24 @@ if st.session_state.show_key_panel or not has_key:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
+# ═══════════════════════════════════════════════════════════
+# ── ENGINE / MODEL SELECTION ───────────────────────────────
+# ═══════════════════════════════════════════════════════════
+st.markdown('<div class="section-title">⚙️ &nbsp;Image Generation Engine</div>', unsafe_allow_html=True)
+model_pick = st.radio(
+    "image_model",
+    options=[
+        "🎨 Microsoft Designer (Bing) - 100% Free & Keyless",
+        "🪐 Gemini 3.1 Flash Image (Paid Tier / Billing Required)"
+    ],
+    index=0 if st.session_state.image_model == "Microsoft Designer (Bing)" else 1,
+    horizontal=True,
+    key="radio_model",
+    label_visibility="collapsed"
+)
+st.session_state.image_model = "Microsoft Designer (Bing)" if "Microsoft" in model_pick else "🪐 Gemini 3.1 Flash Image (Paid)"
+st.markdown("<br>", unsafe_allow_html=True)
+
 
 # ═══════════════════════════════════════════════════════════
 # ── PROMPT PANEL ───────────────────────────────────────────
@@ -813,8 +853,10 @@ if st.session_state.success_msg:
 # ── GENERATE BUTTON ────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="generate-cta">', unsafe_allow_html=True)
+is_free_model = (st.session_state.image_model == "Microsoft Designer (Bing)")
+btn_label = "🚀  Generate with Microsoft Designer (Bing) (Free)" if is_free_model else "🚀  Generate with Gemini 3.1 Flash Image"
 gen_clicked = st.button(
-    "🚀  Generate with Gemini 3.1 Flash Image (Free)",
+    btn_label,
     key="btn_generate",
     use_container_width=True,
 )
@@ -825,7 +867,7 @@ if gen_clicked:
     if not st.session_state.prompt.strip():
         st.session_state.error_msg = "Please enter a prompt first."
         st.rerun()
-    elif not st.session_state.api_key.strip():
+    elif not is_free_model and not st.session_state.api_key.strip():
         st.session_state.error_msg = "API key is missing. Open the key panel above."
         st.session_state.show_key_panel = True
         st.rerun()
@@ -836,12 +878,16 @@ if gen_clicked:
         spinner_ph = st.empty()
         prog_ph    = st.empty()
 
-        with st.spinner("🪐 Gemini 3.1 Flash Image 正在生成圖像…"):
-            prog_ph.progress(0, text="Connecting to Google AI…")
+        spinner_msg = "🪐 Microsoft Designer (Bing) 正在生成圖像…" if is_free_model else "🪐 Gemini 3.1 Flash Image 正在生成圖像…"
+        with st.spinner(spinner_msg):
+            prog_ph.progress(0, text="Connecting to AI Server…")
             time.sleep(0.4)
             prog_ph.progress(25, text="Sending prompt…")
             try:
-                b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
+                if is_free_model:
+                    b64 = call_pollinations_image(final_prompt, st.session_state.aspect)
+                else:
+                    b64 = call_gemini_image(final_prompt, st.session_state.aspect, st.session_state.api_key)
                 prog_ph.progress(85, text="Decoding image…")
                 time.sleep(0.2)
                 prog_ph.progress(100, text="Done!")
