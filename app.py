@@ -609,9 +609,9 @@ def call_free_image(prompt: str, aspect: str, progress_ph=None) -> str:
                 raise RuntimeError("AI Horde failed to queue request.")
 
             status_url = f"https://stablehorde.net/api/v2/generate/status/{request_id}"
-            # Poll for up to 90 seconds (30 attempts * 3 seconds)
-            for attempt in range(30):
-                time.sleep(3)
+            # Poll for up to 120 seconds (12 attempts * 10 seconds) to avoid 429 Too Many Requests
+            for attempt in range(12):
+                time.sleep(10)
                 res = requests.get(status_url, timeout=20)
                 res.raise_for_status()
                 data = res.json()
@@ -626,7 +626,7 @@ def call_free_image(prompt: str, aspect: str, progress_ph=None) -> str:
                     pos = data.get("queue_position", 0)
                     if progress_ph:
                         progress_ph.progress(
-                            min(40 + attempt * 2, 95), 
+                            min(40 + attempt * 5, 95), 
                             text=f"⏳ AI Horde Queue (Pos: {pos}, Est: {wait_time}s)..."
                         )
             raise RuntimeError("AI Horde generation timed out.")
